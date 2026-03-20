@@ -1,0 +1,1121 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>BloodLink — Every Second Counts</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Playfair+Display:ital,wght@0,400;0,700;1,400&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+  :root {
+    --blood: #C8102E;
+    --blood-deep: #8B0000;
+    --blood-light: #E8314A;
+    --obsidian: #0A0A0B;
+    --charcoal: #141416;
+    --slate: #1E1E22;
+    --mist: #F5F2EE;
+    --cream: #FAF8F5;
+    --gold: #D4A853;
+    --gold-light: #F0C970;
+    --text-primary: #F5F2EE;
+    --text-muted: rgba(245,242,238,0.5);
+  }
+
+  html { scroll-behavior: smooth; }
+
+  body {
+    background: var(--obsidian);
+    color: var(--text-primary);
+    font-family: 'DM Sans', sans-serif;
+    font-weight: 300;
+    overflow-x: hidden;
+    cursor: none;
+  }
+
+  /* Custom Cursor */
+  .cursor {
+    position: fixed;
+    width: 12px; height: 12px;
+    background: var(--blood);
+    border-radius: 50%;
+    pointer-events: none;
+    z-index: 9999;
+    transition: transform 0.1s ease;
+    mix-blend-mode: difference;
+  }
+  .cursor-ring {
+    position: fixed;
+    width: 36px; height: 36px;
+    border: 1px solid rgba(200,16,46,0.6);
+    border-radius: 50%;
+    pointer-events: none;
+    z-index: 9998;
+    transition: all 0.2s ease;
+  }
+
+  /* NAV */
+  nav {
+    position: fixed; top: 0; left: 0; right: 0;
+    z-index: 100;
+    padding: 24px 60px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    background: linear-gradient(to bottom, rgba(10,10,11,0.95), transparent);
+    backdrop-filter: blur(0px);
+  }
+
+  .logo {
+    display: flex; align-items: center; gap: 10px;
+    text-decoration: none;
+  }
+  .logo-icon {
+    width: 36px; height: 36px;
+    position: relative;
+  }
+  .logo-icon svg { width: 100%; height: 100%; }
+  .logo-text {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 26px;
+    letter-spacing: 3px;
+    color: var(--mist);
+  }
+  .logo-text span { color: var(--blood); }
+
+  .nav-links {
+    display: flex; align-items: center; gap: 40px;
+    list-style: none;
+  }
+  .nav-links a {
+    text-decoration: none;
+    color: var(--text-muted);
+    font-size: 13px;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    transition: color 0.3s;
+  }
+  .nav-links a:hover { color: var(--mist); }
+
+  .nav-cta {
+    background: var(--blood);
+    color: white !important;
+    padding: 10px 24px;
+    border-radius: 2px;
+    font-size: 12px !important;
+    letter-spacing: 2px !important;
+    transition: background 0.3s !important;
+  }
+  .nav-cta:hover { background: var(--blood-light) !important; color: white !important; }
+
+  /* HERO */
+  .hero {
+    min-height: 100vh;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .hero-bg {
+    position: absolute; inset: 0;
+    background: radial-gradient(ellipse 80% 60% at 65% 50%, rgba(139,0,0,0.15) 0%, transparent 70%);
+    pointer-events: none;
+  }
+
+  .grain {
+    position: fixed; inset: -200%;
+    width: 400%; height: 400%;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='1'/%3E%3C/svg%3E");
+    opacity: 0.035;
+    pointer-events: none;
+    z-index: 1;
+    animation: grain 8s steps(1) infinite;
+  }
+  @keyframes grain {
+    0%,100%{transform:translate(0,0)} 10%{transform:translate(-5%,-10%)} 20%{transform:translate(-15%,5%)} 30%{transform:translate(7%,-25%)} 40%{transform:translate(-5%,25%)} 50%{transform:translate(-15%,10%)} 60%{transform:translate(15%,0)} 70%{transform:translate(0,15%)} 80%{transform:translate(3%,35%)} 90%{transform:translate(-10%,10%)}
+  }
+
+  .hero-left {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    padding: 140px 60px 80px;
+    position: relative;
+    z-index: 2;
+  }
+
+  .hero-eyebrow {
+    display: flex; align-items: center; gap: 12px;
+    margin-bottom: 32px;
+    opacity: 0;
+    animation: fadeUp 0.8s 0.2s forwards;
+  }
+  .eyebrow-line {
+    width: 40px; height: 1px;
+    background: var(--blood);
+  }
+  .eyebrow-text {
+    font-size: 11px;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    color: var(--blood-light);
+  }
+
+  .hero-title {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: clamp(72px, 8vw, 120px);
+    line-height: 0.92;
+    letter-spacing: 2px;
+    margin-bottom: 32px;
+    opacity: 0;
+    animation: fadeUp 0.8s 0.4s forwards;
+  }
+  .hero-title .line-accent {
+    color: var(--blood);
+    display: block;
+    font-style: italic;
+    font-family: 'Playfair Display', serif;
+    font-size: 0.7em;
+    letter-spacing: 4px;
+  }
+
+  .hero-sub {
+    font-size: 16px;
+    line-height: 1.7;
+    color: var(--text-muted);
+    max-width: 440px;
+    margin-bottom: 48px;
+    opacity: 0;
+    animation: fadeUp 0.8s 0.6s forwards;
+  }
+
+  .hero-actions {
+    display: flex; gap: 16px; align-items: center;
+    opacity: 0;
+    animation: fadeUp 0.8s 0.8s forwards;
+  }
+
+  .btn-primary {
+    display: inline-flex; align-items: center; gap: 10px;
+    background: var(--blood);
+    color: white;
+    padding: 16px 36px;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 13px;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    text-decoration: none;
+    border-radius: 2px;
+    transition: all 0.3s;
+    position: relative;
+    overflow: hidden;
+  }
+  .btn-primary::before {
+    content: '';
+    position: absolute; inset: 0;
+    background: linear-gradient(90deg, transparent, rgba(255,255,255,0.15), transparent);
+    transform: translateX(-100%);
+    transition: transform 0.5s;
+  }
+  .btn-primary:hover::before { transform: translateX(100%); }
+  .btn-primary:hover { background: var(--blood-light); transform: translateY(-2px); }
+
+  .btn-secondary {
+    display: inline-flex; align-items: center; gap: 10px;
+    color: var(--text-muted);
+    font-size: 13px;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    text-decoration: none;
+    padding: 16px 8px;
+    border-bottom: 1px solid rgba(245,242,238,0.15);
+    transition: all 0.3s;
+  }
+  .btn-secondary:hover { color: var(--mist); border-color: var(--mist); }
+
+  .hero-stats {
+    display: flex; gap: 48px;
+    margin-top: 64px;
+    padding-top: 48px;
+    border-top: 1px solid rgba(245,242,238,0.08);
+    opacity: 0;
+    animation: fadeUp 0.8s 1s forwards;
+  }
+  .stat-item { display: flex; flex-direction: column; gap: 4px; }
+  .stat-num {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 42px;
+    color: var(--blood-light);
+    letter-spacing: 2px;
+    line-height: 1;
+  }
+  .stat-label {
+    font-size: 11px;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: var(--text-muted);
+  }
+
+  /* Hero Right — Visual */
+  .hero-right {
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+    z-index: 2;
+  }
+
+  .hero-visual {
+    position: relative;
+    width: 420px; height: 420px;
+    opacity: 0;
+    animation: fadeIn 1.2s 0.6s forwards;
+  }
+
+  .pulse-ring {
+    position: absolute; inset: 0;
+    border-radius: 50%;
+    border: 1px solid rgba(200,16,46,0.3);
+    animation: pulseRing 3s ease-out infinite;
+  }
+  .pulse-ring:nth-child(2) { animation-delay: 1s; opacity: 0.6; }
+  .pulse-ring:nth-child(3) { animation-delay: 2s; opacity: 0.3; }
+  @keyframes pulseRing {
+    0% { transform: scale(0.8); opacity: 0.8; }
+    100% { transform: scale(1.4); opacity: 0; }
+  }
+
+  .blood-drop-container {
+    position: absolute;
+    top: 50%; left: 50%;
+    transform: translate(-50%, -55%);
+    animation: float 4s ease-in-out infinite;
+  }
+  @keyframes float {
+    0%, 100% { transform: translate(-50%, -55%); }
+    50% { transform: translate(-50%, -65%); }
+  }
+
+  .blood-drop-svg {
+    width: 180px;
+    filter: drop-shadow(0 20px 60px rgba(200,16,46,0.5));
+  }
+
+  .map-overlay {
+    position: absolute;
+    bottom: 30px; left: 50%;
+    transform: translateX(-50%);
+    background: rgba(20,20,22,0.9);
+    border: 1px solid rgba(200,16,46,0.2);
+    border-radius: 12px;
+    padding: 16px 24px;
+    width: 300px;
+    backdrop-filter: blur(20px);
+    animation: slideUp 0.6s 1.2s both;
+  }
+  @keyframes slideUp {
+    from { opacity: 0; transform: translate(-50%, 20px); }
+    to { opacity: 1; transform: translate(-50%, 0); }
+  }
+
+  .map-header {
+    display: flex; align-items: center; justify-content: space-between;
+    margin-bottom: 12px;
+  }
+  .map-label { font-size: 10px; letter-spacing: 2px; text-transform: uppercase; color: var(--text-muted); }
+  .map-badge {
+    background: rgba(200,16,46,0.2);
+    border: 1px solid rgba(200,16,46,0.4);
+    color: var(--blood-light);
+    font-size: 10px;
+    padding: 2px 8px;
+    border-radius: 10px;
+    letter-spacing: 1px;
+  }
+
+  .donor-list { display: flex; flex-direction: column; gap: 8px; }
+  .donor-item {
+    display: flex; align-items: center; gap: 10px;
+    padding: 8px;
+    border-radius: 6px;
+    background: rgba(245,242,238,0.03);
+  }
+  .donor-avatar {
+    width: 28px; height: 28px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, var(--blood-deep), var(--blood));
+    display: flex; align-items: center; justify-content: center;
+    font-size: 10px;
+    font-weight: 500;
+  }
+  .donor-info { flex: 1; }
+  .donor-name { font-size: 12px; font-weight: 500; }
+  .donor-dist { font-size: 10px; color: var(--text-muted); }
+  .donor-type {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 16px;
+    color: var(--blood-light);
+    letter-spacing: 1px;
+  }
+
+  @keyframes fadeUp {
+    from { opacity: 0; transform: translateY(24px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+  @keyframes fadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+  }
+
+  /* URGENCY TICKER */
+  .ticker-bar {
+    background: var(--blood);
+    padding: 12px 0;
+    overflow: hidden;
+    position: relative;
+    z-index: 3;
+  }
+  .ticker-inner {
+    display: flex; gap: 0;
+    animation: ticker 25s linear infinite;
+    white-space: nowrap;
+  }
+  @keyframes ticker { from { transform: translateX(0); } to { transform: translateX(-50%); } }
+  .ticker-item {
+    display: flex; align-items: center; gap: 16px;
+    font-size: 12px;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    padding: 0 32px;
+    flex-shrink: 0;
+  }
+  .ticker-dot { width: 5px; height: 5px; background: rgba(255,255,255,0.5); border-radius: 50%; }
+  .ticker-urgent { color: rgba(255,255,255,0.9); font-weight: 500; }
+
+  /* HOW IT WORKS */
+  .section {
+    padding: 120px 60px;
+    position: relative;
+  }
+
+  .section-header {
+    display: flex; align-items: flex-end; justify-content: space-between;
+    margin-bottom: 80px;
+  }
+  .section-eyebrow {
+    font-size: 10px;
+    letter-spacing: 4px;
+    text-transform: uppercase;
+    color: var(--blood-light);
+    margin-bottom: 16px;
+  }
+  .section-title {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: clamp(48px, 5vw, 72px);
+    letter-spacing: 2px;
+    line-height: 0.95;
+  }
+  .section-title em {
+    font-family: 'Playfair Display', serif;
+    font-style: italic;
+    color: var(--text-muted);
+    font-size: 0.85em;
+  }
+  .section-desc {
+    font-size: 15px;
+    color: var(--text-muted);
+    max-width: 320px;
+    line-height: 1.7;
+  }
+
+  .steps-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 1px;
+    background: rgba(245,242,238,0.06);
+    border: 1px solid rgba(245,242,238,0.06);
+  }
+
+  .step-card {
+    background: var(--charcoal);
+    padding: 48px 36px;
+    position: relative;
+    overflow: hidden;
+    transition: background 0.4s;
+  }
+  .step-card::before {
+    content: '';
+    position: absolute;
+    bottom: 0; left: 0; right: 0;
+    height: 2px;
+    background: var(--blood);
+    transform: scaleX(0);
+    transform-origin: left;
+    transition: transform 0.4s;
+  }
+  .step-card:hover { background: var(--slate); }
+  .step-card:hover::before { transform: scaleX(1); }
+
+  .step-num {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 80px;
+    line-height: 1;
+    color: rgba(200,16,46,0.1);
+    margin-bottom: 24px;
+    letter-spacing: 2px;
+  }
+  .step-icon {
+    width: 44px; height: 44px;
+    background: rgba(200,16,46,0.1);
+    border: 1px solid rgba(200,16,46,0.25);
+    border-radius: 8px;
+    display: flex; align-items: center; justify-content: center;
+    margin-bottom: 20px;
+  }
+  .step-title {
+    font-size: 18px;
+    font-weight: 500;
+    margin-bottom: 12px;
+    letter-spacing: 0.5px;
+  }
+  .step-body {
+    font-size: 14px;
+    color: var(--text-muted);
+    line-height: 1.7;
+  }
+
+  /* ROLES SECTION */
+  .roles-section {
+    padding: 0 60px 120px;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 2px;
+    background: rgba(245,242,238,0.04);
+  }
+
+  .role-panel {
+    padding: 80px 60px;
+    position: relative;
+    overflow: hidden;
+    background: var(--charcoal);
+  }
+  .role-panel.donor { border-right: 1px solid rgba(245,242,238,0.06); }
+  .role-panel::after {
+    content: '';
+    position: absolute;
+    top: 0; right: 0;
+    width: 200px; height: 200px;
+    background: radial-gradient(circle, rgba(200,16,46,0.08) 0%, transparent 70%);
+  }
+
+  .role-tag {
+    display: inline-flex; align-items: center; gap: 8px;
+    background: rgba(200,16,46,0.12);
+    border: 1px solid rgba(200,16,46,0.25);
+    color: var(--blood-light);
+    font-size: 11px;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    padding: 6px 14px;
+    border-radius: 2px;
+    margin-bottom: 36px;
+  }
+
+  .role-title {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 52px;
+    letter-spacing: 2px;
+    line-height: 1;
+    margin-bottom: 24px;
+  }
+  .role-body {
+    font-size: 15px;
+    color: var(--text-muted);
+    line-height: 1.7;
+    max-width: 380px;
+    margin-bottom: 40px;
+  }
+
+  .feature-list { display: flex; flex-direction: column; gap: 14px; }
+  .feature-item {
+    display: flex; align-items: flex-start; gap: 12px;
+    font-size: 14px;
+  }
+  .feature-check {
+    width: 18px; height: 18px;
+    background: rgba(200,16,46,0.15);
+    border: 1px solid rgba(200,16,46,0.3);
+    border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0;
+    margin-top: 2px;
+  }
+
+  /* MAP SECTION */
+  .map-section {
+    padding: 120px 60px;
+    background: var(--slate);
+    position: relative;
+    overflow: hidden;
+  }
+  .map-section::before {
+    content: '';
+    position: absolute;
+    top: -100px; left: 50%;
+    transform: translateX(-50%);
+    width: 600px; height: 600px;
+    background: radial-gradient(circle, rgba(200,16,46,0.06) 0%, transparent 70%);
+    pointer-events: none;
+  }
+
+  .map-demo {
+    margin-top: 60px;
+    background: var(--charcoal);
+    border: 1px solid rgba(245,242,238,0.06);
+    border-radius: 4px;
+    overflow: hidden;
+    position: relative;
+    height: 400px;
+  }
+
+  .map-grid {
+    position: absolute; inset: 0;
+    background-image:
+      linear-gradient(rgba(200,16,46,0.04) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(200,16,46,0.04) 1px, transparent 1px);
+    background-size: 40px 40px;
+  }
+  .map-center-ring {
+    position: absolute;
+    top: 50%; left: 50%;
+    width: 240px; height: 240px;
+    border: 1px solid rgba(200,16,46,0.25);
+    border-radius: 50%;
+    transform: translate(-50%, -50%);
+    animation: mapPulse 3s ease-in-out infinite;
+  }
+  .map-center-ring::after {
+    content: '';
+    position: absolute; inset: -60px;
+    border: 1px solid rgba(200,16,46,0.1);
+    border-radius: 50%;
+  }
+  @keyframes mapPulse {
+    0%, 100% { box-shadow: 0 0 0 0 rgba(200,16,46,0.3); }
+    50% { box-shadow: 0 0 0 20px rgba(200,16,46,0); }
+  }
+  .map-center-dot {
+    position: absolute; top: 50%; left: 50%;
+    transform: translate(-50%, -50%);
+    width: 16px; height: 16px;
+    background: var(--blood);
+    border-radius: 50%;
+    box-shadow: 0 0 20px rgba(200,16,46,0.8);
+  }
+
+  .map-donor-pin {
+    position: absolute;
+    width: 32px; height: 32px;
+    background: var(--slate);
+    border: 1.5px solid rgba(200,16,46,0.5);
+    border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 11px;
+    color: var(--blood-light);
+    cursor: pointer;
+    transition: all 0.3s;
+  }
+  .map-donor-pin:hover {
+    background: var(--blood);
+    border-color: var(--blood);
+    color: white;
+    transform: scale(1.2);
+  }
+
+  /* CTA */
+  .cta-section {
+    padding: 120px 60px;
+    text-align: center;
+    position: relative;
+    overflow: hidden;
+  }
+  .cta-section::before {
+    content: '';
+    position: absolute; inset: 0;
+    background: radial-gradient(ellipse 60% 80% at 50% 50%, rgba(139,0,0,0.2) 0%, transparent 70%);
+  }
+  .cta-title {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: clamp(60px, 7vw, 100px);
+    letter-spacing: 3px;
+    line-height: 0.92;
+    margin-bottom: 24px;
+    position: relative;
+  }
+  .cta-title span { color: var(--blood); }
+  .cta-sub {
+    font-size: 16px;
+    color: var(--text-muted);
+    max-width: 500px;
+    margin: 0 auto 48px;
+    line-height: 1.7;
+    position: relative;
+  }
+
+  .btn-group {
+    display: flex; gap: 16px;
+    justify-content: center;
+    flex-wrap: wrap;
+    position: relative;
+  }
+
+  .btn-large {
+    padding: 20px 52px;
+    font-size: 14px;
+    letter-spacing: 2.5px;
+  }
+
+  .btn-outline {
+    display: inline-flex; align-items: center; gap: 10px;
+    border: 1px solid rgba(245,242,238,0.2);
+    color: var(--mist);
+    padding: 20px 52px;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 14px;
+    letter-spacing: 2.5px;
+    text-transform: uppercase;
+    text-decoration: none;
+    border-radius: 2px;
+    transition: all 0.3s;
+  }
+  .btn-outline:hover { border-color: var(--mist); background: rgba(245,242,238,0.05); }
+
+  /* FOOTER */
+  footer {
+    padding: 48px 60px;
+    border-top: 1px solid rgba(245,242,238,0.06);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .footer-copy { font-size: 13px; color: var(--text-muted); }
+  .footer-links { display: flex; gap: 32px; }
+  .footer-links a {
+    font-size: 12px;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    color: var(--text-muted);
+    text-decoration: none;
+    transition: color 0.3s;
+  }
+  .footer-links a:hover { color: var(--mist); }
+
+  /* Animations on scroll */
+  .reveal {
+    opacity: 0;
+    transform: translateY(30px);
+    transition: all 0.7s ease;
+  }
+  .reveal.visible {
+    opacity: 1;
+    transform: translateY(0);
+  }
+
+  @media (max-width: 900px) {
+    .hero { grid-template-columns: 1fr; }
+    .hero-right { display: none; }
+    nav { padding: 20px 24px; }
+    .nav-links { display: none; }
+    .section { padding: 80px 24px; }
+    .steps-grid { grid-template-columns: 1fr 1fr; }
+    .roles-section { grid-template-columns: 1fr; padding: 0 24px 80px; }
+    footer { flex-direction: column; gap: 20px; text-align: center; }
+  }
+</style>
+</head>
+<body>
+
+<div class="cursor" id="cursor"></div>
+<div class="cursor-ring" id="cursorRing"></div>
+<div class="grain"></div>
+
+<!-- NAV -->
+<nav>
+  <a href="#" class="logo">
+    <div class="logo-icon">
+      <svg viewBox="0 0 36 36" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <path d="M18 4C18 4 6 14 6 22C6 28.627 11.373 34 18 34C24.627 34 30 28.627 30 22C30 14 18 4 18 4Z" fill="#C8102E"/>
+        <path d="M18 10C18 10 11 17 11 22C11 25.866 14.134 29 18 29C21.866 29 25 25.866 25 22C25 17 18 10 18 10Z" fill="rgba(255,255,255,0.15)"/>
+        <line x1="18" y1="16" x2="18" y2="28" stroke="rgba(255,255,255,0.6)" stroke-width="1.5"/>
+        <line x1="12" y1="22" x2="24" y2="22" stroke="rgba(255,255,255,0.6)" stroke-width="1.5"/>
+      </svg>
+    </div>
+    <span class="logo-text">BLOOD<span>LINK</span></span>
+  </a>
+  <ul class="nav-links">
+    <li><a href="#how">How It Works</a></li>
+    <li><a href="#donors">For Donors</a></li>
+    <li><a href="#hospitals">For Hospitals</a></li>
+    <li><a href="#dashboard" class="nav-cta">Dashboard →</a></li>
+  </ul>
+</nav>
+
+<!-- HERO -->
+<section class="hero">
+  <div class="hero-bg"></div>
+  <div class="hero-left">
+    <div class="hero-eyebrow">
+      <div class="eyebrow-line"></div>
+      <span class="eyebrow-text">Real-time Blood Matching Platform</span>
+    </div>
+    <h1 class="hero-title">
+      EVERY
+      <span class="line-accent">drop saves</span>
+      A LIFE
+    </h1>
+    <p class="hero-sub">BloodLink connects critical patients with eligible donors in real-time — using geolocation, blood-type matching, and hospital coordination.</p>
+    <div class="hero-actions">
+      <a href="#" class="btn-primary btn-large">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s-8-4.5-8-11.8A8 8 0 0112 2a8 8 0 018 8.2c0 7.3-8 11.8-8 11.8z"/><circle cx="12" cy="10" r="3"/></svg>
+        Donate Now
+      </a>
+      <a href="#hospitals" class="btn-secondary">
+        Hospital Portal →
+      </a>
+    </div>
+    <div class="hero-stats">
+      <div class="stat-item">
+        <span class="stat-num">4.7K</span>
+        <span class="stat-label">Active Donors</span>
+      </div>
+      <div class="stat-item">
+        <span class="stat-num">38</span>
+        <span class="stat-label">Partner Hospitals</span>
+      </div>
+      <div class="stat-item">
+        <span class="stat-num">99s</span>
+        <span class="stat-label">Avg. Match Time</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="hero-right">
+    <div class="hero-visual">
+      <div class="pulse-ring"></div>
+      <div class="pulse-ring"></div>
+      <div class="pulse-ring"></div>
+      <div class="blood-drop-container">
+        <svg class="blood-drop-svg" viewBox="0 0 120 150" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <path d="M60 10C60 10 10 55 10 90C10 118 33 140 60 140C87 140 110 118 110 90C110 55 60 10 60 10Z" fill="url(#bloodGrad)"/>
+          <path d="M60 25C60 25 25 62 25 90C25 107 41 121 60 121C79 121 95 107 95 90C95 62 60 25 60 25Z" fill="rgba(255,255,255,0.08)"/>
+          <line x1="60" y1="55" x2="60" y2="115" stroke="rgba(255,255,255,0.3)" stroke-width="2"/>
+          <line x1="35" y1="85" x2="85" y2="85" stroke="rgba(255,255,255,0.3)" stroke-width="2"/>
+          <defs>
+            <linearGradient id="bloodGrad" x1="10" y1="10" x2="110" y2="140" gradientUnits="userSpaceOnUse">
+              <stop offset="0%" stop-color="#E8314A"/>
+              <stop offset="100%" stop-color="#8B0000"/>
+            </linearGradient>
+          </defs>
+        </svg>
+      </div>
+      <div class="map-overlay">
+        <div class="map-header">
+          <span class="map-label">Nearby Donors</span>
+          <span class="map-badge">● LIVE</span>
+        </div>
+        <div class="donor-list">
+          <div class="donor-item">
+            <div class="donor-avatar">AK</div>
+            <div class="donor-info">
+              <div class="donor-name">Arjun K.</div>
+              <div class="donor-dist">1.2 km away · Eligible</div>
+            </div>
+            <span class="donor-type">O+</span>
+          </div>
+          <div class="donor-item">
+            <div class="donor-avatar">SM</div>
+            <div class="donor-info">
+              <div class="donor-name">Sara M.</div>
+              <div class="donor-dist">2.8 km away · Eligible</div>
+            </div>
+            <span class="donor-type">AB-</span>
+          </div>
+          <div class="donor-item">
+            <div class="donor-avatar">RJ</div>
+            <div class="donor-info">
+              <div class="donor-name">Ravi J.</div>
+              <div class="donor-dist">3.5 km away · Eligible</div>
+            </div>
+            <span class="donor-type">B+</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- TICKER -->
+<div class="ticker-bar">
+  <div class="ticker-inner">
+    <div class="ticker-item"><div class="ticker-dot"></div><span class="ticker-urgent">🚨 CRITICAL: O- Needed · SGH Ward 4</span></div>
+    <div class="ticker-item"><div class="ticker-dot"></div><span>3 Donors Matched · Raffles Hospital</span></div>
+    <div class="ticker-item"><div class="ticker-dot"></div><span class="ticker-urgent">🚨 URGENT: AB+ Needed · NUH</span></div>
+    <div class="ticker-item"><div class="ticker-dot"></div><span>87 Lives Saved This Month</span></div>
+    <div class="ticker-item"><div class="ticker-dot"></div><span class="ticker-urgent">🚨 HIGH: B- Request · Tan Tock Seng</span></div>
+    <div class="ticker-item"><div class="ticker-dot"></div><span>New Hospital Joined · KK Women's</span></div>
+    <!-- Duplicate for seamless loop -->
+    <div class="ticker-item"><div class="ticker-dot"></div><span class="ticker-urgent">🚨 CRITICAL: O- Needed · SGH Ward 4</span></div>
+    <div class="ticker-item"><div class="ticker-dot"></div><span>3 Donors Matched · Raffles Hospital</span></div>
+    <div class="ticker-item"><div class="ticker-dot"></div><span class="ticker-urgent">🚨 URGENT: AB+ Needed · NUH</span></div>
+    <div class="ticker-item"><div class="ticker-dot"></div><span>87 Lives Saved This Month</span></div>
+    <div class="ticker-item"><div class="ticker-dot"></div><span class="ticker-urgent">🚨 HIGH: B- Request · Tan Tock Seng</span></div>
+    <div class="ticker-item"><div class="ticker-dot"></div><span>New Hospital Joined · KK Women's</span></div>
+  </div>
+</div>
+
+<!-- HOW IT WORKS -->
+<section class="section" id="how">
+  <div class="section-header reveal">
+    <div>
+      <div class="section-eyebrow">The System</div>
+      <h2 class="section-title">HOW IT<br><em>Actually Works</em></h2>
+    </div>
+    <p class="section-desc">From a critical request to a matched donor — in under two minutes. Here's the engine behind BloodLink.</p>
+  </div>
+  <div class="steps-grid reveal">
+    <div class="step-card">
+      <div class="step-num">01</div>
+      <div class="step-icon">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#C8102E" stroke-width="1.5"><path d="M9 12l2 2 4-4"/><path d="M21 12c0 4.97-4.03 9-9 9s-9-4.03-9-9 4.03-9 9-9 9 4.03 9 9z"/></svg>
+      </div>
+      <div class="step-title">Register & Verify</div>
+      <div class="step-body">Donors verify via phone. Hospitals go through our facility verification workflow before gaining access to the donor radar.</div>
+    </div>
+    <div class="step-card">
+      <div class="step-num">02</div>
+      <div class="step-icon">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#C8102E" stroke-width="1.5"><path d="M12 22s-8-4.5-8-11.8A8 8 0 0112 2a8 8 0 018 8.2c0 7.3-8 11.8-8 11.8z"/><circle cx="12" cy="10" r="3"/></svg>
+      </div>
+      <div class="step-title">Request Created</div>
+      <div class="step-body">A hospital or family member creates a blood request with patient details, blood type, and urgency level (Normal / High / Critical).</div>
+    </div>
+    <div class="step-card">
+      <div class="step-num">03</div>
+      <div class="step-icon">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#C8102E" stroke-width="1.5"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+      </div>
+      <div class="step-title">Geo-Match Engine</div>
+      <div class="step-body">PostGIS queries all eligible donors — correct blood type, 90-day cooldown elapsed — within a configurable radius.</div>
+    </div>
+    <div class="step-card">
+      <div class="step-num">04</div>
+      <div class="step-icon">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#C8102E" stroke-width="1.5"><path d="M22 16.92v3a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07 19.5 19.5 0 01-6-6 19.79 19.79 0 01-3.07-8.67A2 2 0 014.11 2h3a2 2 0 012 1.72 12.84 12.84 0 00.7 2.81 2 2 0 01-.45 2.11L8.09 9.91a16 16 0 006 6l1.27-1.27a2 2 0 012.11-.45 12.84 12.84 0 002.81.7A2 2 0 0122 16.92z"/></svg>
+      </div>
+      <div class="step-title">SOS Ping Sent</div>
+      <div class="step-body">Matched donors receive an instant push notification. First to accept triggers a confirmation flow and gets hospital directions.</div>
+    </div>
+  </div>
+</section>
+
+<!-- ROLES -->
+<div class="roles-section" id="donors">
+  <div class="role-panel donor reveal">
+    <div class="role-tag">
+      <svg width="12" height="12" viewBox="0 0 24 24" fill="#C8102E"><path d="M12 22s-8-4.5-8-11.8A8 8 0 0112 2a8 8 0 018 8.2c0 7.3-8 11.8-8 11.8z"/></svg>
+      For Donors
+    </div>
+    <h3 class="role-title">BE THE<br>HERO.</h3>
+    <p class="role-body">Register once. Save a life anytime. BloodLink tracks your eligibility and notifies you when a compatible match is within range.</p>
+    <div class="feature-list">
+      <div class="feature-item">
+        <div class="feature-check"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#C8102E" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg></div>
+        <span>Real-time proximity alerts for critical requests</span>
+      </div>
+      <div class="feature-item">
+        <div class="feature-check"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#C8102E" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg></div>
+        <span>Donation history & 90-day eligibility countdown</span>
+      </div>
+      <div class="feature-item">
+        <div class="feature-check"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#C8102E" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg></div>
+        <span>Create requests for family members</span>
+      </div>
+      <div class="feature-item">
+        <div class="feature-check"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#C8102E" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg></div>
+        <span>Private & secure — share only what you choose</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="role-panel hospital reveal" id="hospitals">
+    <div class="role-tag">
+      <svg width="12" height="12" viewBox="0 0 24 24" fill="#C8102E"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+      For Hospitals
+    </div>
+    <h3 class="role-title">COMMAND<br>THE ROOM.</h3>
+    <p class="role-body">Your operations dashboard. Manage all active requests, run donor radar searches with custom geo-radius, and dispatch SOS pings in one click.</p>
+    <div class="feature-list">
+      <div class="feature-item">
+        <div class="feature-check"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#C8102E" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg></div>
+        <span>Active request management & status tracking</span>
+      </div>
+      <div class="feature-item">
+        <div class="feature-check"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#C8102E" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg></div>
+        <span>Donor Radar: filter by blood type + geo-radius</span>
+      </div>
+      <div class="feature-item">
+        <div class="feature-check"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#C8102E" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg></div>
+        <span>One-click SOS broadcast to eligible donors</span>
+      </div>
+      <div class="feature-item">
+        <div class="feature-check"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#C8102E" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg></div>
+        <span>Analytics dashboard — response rates & trends</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- MAP SECTION -->
+<section class="map-section reveal">
+  <div class="section-header">
+    <div>
+      <div class="section-eyebrow">Donor Radar</div>
+      <h2 class="section-title">FIND.<br><em>Match.</em><br>SAVE.</h2>
+    </div>
+    <p class="section-desc">Set your geo-fence. Filter by blood type. The matching engine does the rest — returning eligible donors ranked by distance.</p>
+  </div>
+  <div class="map-demo">
+    <div class="map-grid"></div>
+    <div class="map-center-ring"></div>
+    <div class="map-center-dot"></div>
+    <!-- Donor Pins -->
+    <div class="map-donor-pin" style="top:30%;left:58%" title="O+ · 1.2km">O+</div>
+    <div class="map-donor-pin" style="top:55%;left:65%" title="AB- · 2.8km">AB-</div>
+    <div class="map-donor-pin" style="top:40%;left:38%" title="B+ · 3.5km">B+</div>
+    <div class="map-donor-pin" style="top:62%;left:42%" title="O- · 4.1km">O-</div>
+    <div class="map-donor-pin" style="top:25%;left:45%" title="A+ · 4.8km">A+</div>
+    <div class="map-donor-pin" style="top:70%;left:55%" title="A- · 5.2km">A-</div>
+    <!-- Hospital badge -->
+    <div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);background:var(--blood);border-radius:50%;width:16px;height:16px;box-shadow:0 0 20px rgba(200,16,46,0.8);z-index:2;"></div>
+    <!-- Legend -->
+    <div style="position:absolute;bottom:20px;right:20px;background:rgba(20,20,22,0.9);border:1px solid rgba(245,242,238,0.08);border-radius:8px;padding:12px 16px;font-size:12px;backdrop-filter:blur(20px);">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">
+        <div style="width:10px;height:10px;background:var(--blood);border-radius:50%;box-shadow:0 0 8px rgba(200,16,46,0.8);"></div>
+        <span>Your Hospital</span>
+      </div>
+      <div style="display:flex;align-items:center;gap:8px;">
+        <div style="width:10px;height:10px;border:1.5px solid rgba(200,16,46,0.5);border-radius:50%;"></div>
+        <span style="color:var(--text-muted);">Eligible Donor</span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- CTA -->
+<section class="cta-section">
+  <h2 class="cta-title reveal">
+    START<br><span>SAVING</span><br>TODAY
+  </h2>
+  <p class="cta-sub reveal">Join BloodLink as a donor or register your hospital. Every second you wait is a second someone needs you.</p>
+  <div class="btn-group reveal">
+    <a href="#" class="btn-primary btn-large">
+      Register as Donor
+    </a>
+    <a href="#" class="btn-outline">
+      Hospital Sign Up
+    </a>
+  </div>
+</section>
+
+<!-- FOOTER -->
+<footer>
+  <div class="logo">
+    <div class="logo-icon">
+      <svg viewBox="0 0 36 36" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <path d="M18 4C18 4 6 14 6 22C6 28.627 11.373 34 18 34C24.627 34 30 28.627 30 22C30 14 18 4 18 4Z" fill="#C8102E"/>
+      </svg>
+    </div>
+    <span class="logo-text">BLOOD<span>LINK</span></span>
+  </div>
+  <p class="footer-copy">© 2026 BloodLink. Built for speed, built to save lives.</p>
+  <div class="footer-links">
+    <a href="#">Privacy</a>
+    <a href="#">Terms</a>
+    <a href="#">API Docs</a>
+    <a href="#">Contact</a>
+  </div>
+</footer>
+
+<script>
+  // Custom cursor
+  const cursor = document.getElementById('cursor');
+  const ring = document.getElementById('cursorRing');
+  let mx = 0, my = 0, rx = 0, ry = 0;
+  document.addEventListener('mousemove', e => {
+    mx = e.clientX; my = e.clientY;
+    cursor.style.left = mx - 6 + 'px';
+    cursor.style.top = my - 6 + 'px';
+  });
+  function animRing() {
+    rx += (mx - rx) * 0.12;
+    ry += (my - ry) *.12;
+    ring.style.left = rx - 18 + 'px';
+    ring.style.top = ry - 18 + 'px';
+    requestAnimationFrame(animRing);
+  }
+  animRing();
+
+  document.querySelectorAll('a,button').forEach(el => {
+    el.addEventListener('mouseenter', () => {
+      cursor.style.transform = 'scale(2)';
+      ring.style.transform = 'scale(1.5)';
+    });
+    el.addEventListener('mouseleave', () => {
+      cursor.style.transform = 'scale(1)';
+      ring.style.transform = 'scale(1)';
+    });
+  });
+
+  // Scroll reveal
+  const reveals = document.querySelectorAll('.reveal');
+  const obs = new IntersectionObserver(entries => {
+    entries.forEach(e => { if (e.isIntersecting) { e.target.classList.add('visible'); } });
+  }, { threshold: 0.1 });
+  reveals.forEach(r => obs.observe(r));
+
+  // Stat counter animation
+  function animateCounter(el, target, suffix='') {
+    let start = 0;
+    const duration = 2000;
+    const step = timestamp => {
+      if (!start) start = timestamp;
+      const progress = Math.min((timestamp - start) / duration, 1);
+      const eased = 1 - Math.pow(1 - progress, 3);
+      el.textContent = Math.floor(eased * target).toLocaleString() + suffix;
+      if (progress < 1) requestAnimationFrame(step);
+    };
+    requestAnimationFrame(step);
+  }
+
+  const statsObs = new IntersectionObserver(entries => {
+    entries.forEach(e => {
+      if (e.isIntersecting) {
+        const nums = e.target.querySelectorAll('.stat-num');
+        const vals = [4700, 38, 99];
+        const suffixes = ['', '', 's'];
+        nums.forEach((n, i) => animateCounter(n, vals[i], suffixes[i]));
+        statsObs.unobserve(e.target);
+      }
+    });
+  }, { threshold: 0.5 });
+
+  const statsEl = document.querySelector('.hero-stats');
+  if (statsEl) statsObs.observe(statsEl);
+</script>
+</body>
+</html>

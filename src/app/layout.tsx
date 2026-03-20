@@ -1,25 +1,20 @@
-import type { Metadata } from 'next';
-import './globals.css';
-import 'leaflet/dist/leaflet.css';
-import { AuthProvider } from '@/contexts/AuthContext';
+import type { Metadata } from "next";
+import "./globals.css";
+import "leaflet/dist/leaflet.css";
 
 export const metadata: Metadata = {
-  title: 'BloodConnect - Save Lives Through Blood Donation',
-  description: 'Connect blood donors with hospitals using AI-powered matching and real-time location tracking',
+  title: "BloodLink",
+  description: "Real-time blood donor matching platform",
 };
 
 export default function RootLayout({
   children,
-}: {
+}: Readonly<{
   children: React.ReactNode;
-}) {
+}>) {
   return (
     <html lang="en">
-      <body>
-        <AuthProvider>
-          {children}
-        </AuthProvider>
-      </body>
+      <body>{children}</body>
     </html>
   );
 }

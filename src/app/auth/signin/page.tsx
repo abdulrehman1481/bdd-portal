@@ -1,0 +1,90 @@
+"use client";
+
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { FormEvent, useState } from "react";
+import { getMe, login } from "@/lib/api";
+import { PublicOnly } from "@/components/AuthGuards";
+import { setStoredRefreshToken, setStoredRole, setStoredToken } from "@/lib/session";
+
+export default function SignInPage() {
+  const router = useRouter();
+  const [email, setEmail] = useState("hospital1@example.com");
+  const [password, setPassword] = useState("StrongPass123!");
+  const [loading, setLoading] = useState(false);
+  const [message, setMessage] = useState("");
+
+  async function handleSubmit(event: FormEvent) {
+    event.preventDefault();
+    setLoading(true);
+    setMessage("");
+
+    try {
+      const tokenData = await login(email, password);
+      const me = await getMe(tokenData.access);
+
+      setStoredToken(tokenData.access);
+      setStoredRefreshToken(tokenData.refresh);
+      setStoredRole(me.role);
+
+      if (me.role === "HOSPITAL") {
+        router.push("/dashboard/hospital");
+      } else {
+        router.push("/dashboard/donor");
+      }
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Sign in failed.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  return (
+    <PublicOnly>
+      <main className="page">
+        <section className="container hero">
+        <div className="brand">BloodLink Access</div>
+        <h1 className="title">
+          Sign <span className="accent">In</span>
+        </h1>
+        <p className="subtitle">Login with your donor or hospital account to access the respective dashboard.</p>
+
+        <div className="panel section" style={{ maxWidth: 680 }}>
+          <div className="panel-head">
+            <div className="panel-title">Account Sign In</div>
+          </div>
+          <div style={{ padding: 16 }}>
+            <form className="form-grid" onSubmit={handleSubmit}>
+              <input
+                className="input"
+                type="email"
+                value={email}
+                required
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="Email"
+              />
+              <input
+                className="input"
+                type="password"
+                value={password}
+                required
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="Password"
+              />
+              <button className="btn btn-primary" type="submit" disabled={loading}>
+                {loading ? "Signing in..." : "Sign In"}
+              </button>
+            </form>
+            <div className="notice">{message || "New user? Create an account first."}</div>
+            <div className="notice">
+              <Link href="/auth/signup" className="accent-link">
+                Go to Sign Up
+              </Link>
+            </div>
+          </div>
+        </div>
+        </section>
+      </main>
+    </PublicOnly>
+  );
+}

@@ -1,0 +1,1342 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>BloodLink — Hospital Dashboard</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Space+Grotesk:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+*, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+:root {
+  --bg: #080A0F;
+  --surface: #0D1117;
+  --surface2: #131921;
+  --surface3: #1A2332;
+  --border: rgba(255,255,255,0.06);
+  --border-active: rgba(200,16,46,0.35);
+  --blood: #C8102E;
+  --blood-glow: rgba(200,16,46,0.4);
+  --blood-dim: rgba(200,16,46,0.12);
+  --text: #E8EDF5;
+  --text-muted: rgba(232,237,245,0.45);
+  --text-dim: rgba(232,237,245,0.25);
+  --green: #00C896;
+  --green-dim: rgba(0,200,150,0.12);
+  --amber: #F59E0B;
+  --amber-dim: rgba(245,158,11,0.12);
+  --blue: #3B82F6;
+  --blue-dim: rgba(59,130,246,0.12);
+}
+
+html, body { height: 100%; overflow: hidden; }
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: 'Space Grotesk', sans-serif;
+  display: flex;
+  flex-direction: column;
+}
+
+/* SCANLINE EFFECT */
+body::after {
+  content: '';
+  position: fixed; inset: 0;
+  background: repeating-linear-gradient(0deg, transparent, transparent 3px, rgba(0,0,0,0.03) 3px, rgba(0,0,0,0.03) 4px);
+  pointer-events: none;
+  z-index: 1000;
+}
+
+/* TOP BAR */
+.topbar {
+  height: 56px;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  padding: 0 24px;
+  gap: 24px;
+  flex-shrink: 0;
+  position: relative;
+  z-index: 50;
+}
+
+.topbar-logo {
+  display: flex; align-items: center; gap: 10px;
+  flex-shrink: 0;
+}
+.topbar-logo svg { width: 24px; height: 24px; }
+.topbar-logo-text {
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 20px;
+  letter-spacing: 3px;
+  color: var(--text);
+}
+.topbar-logo-text span { color: var(--blood); }
+
+.topbar-divider {
+  width: 1px;
+  height: 28px;
+  background: var(--border);
+}
+
+.hospital-name {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text);
+}
+.hospital-badge {
+  font-size: 10px;
+  background: var(--green-dim);
+  border: 1px solid rgba(0,200,150,0.25);
+  color: var(--green);
+  padding: 2px 8px;
+  border-radius: 10px;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+}
+
+.topbar-right {
+  margin-left: auto;
+  display: flex; align-items: center; gap: 16px;
+}
+
+.live-indicator {
+  display: flex; align-items: center; gap: 6px;
+  font-size: 11px;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+.live-dot {
+  width: 7px; height: 7px;
+  background: var(--blood);
+  border-radius: 50%;
+  animation: livePulse 1.5s ease-in-out infinite;
+  box-shadow: 0 0 8px var(--blood-glow);
+}
+@keyframes livePulse {
+  0%, 100% { opacity: 1; box-shadow: 0 0 6px var(--blood-glow); }
+  50% { opacity: 0.5; box-shadow: 0 0 12px var(--blood-glow); }
+}
+
+.topbar-clock {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 13px;
+  color: var(--text-muted);
+  letter-spacing: 1px;
+}
+
+.topbar-avatar {
+  width: 32px; height: 32px;
+  background: var(--blood-dim);
+  border: 1px solid var(--border-active);
+  border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--blood);
+}
+
+/* ALERT BAR */
+.alert-bar {
+  background: linear-gradient(90deg, rgba(200,16,46,0.15) 0%, rgba(200,16,46,0.08) 50%, rgba(200,16,46,0.15) 100%);
+  border-bottom: 1px solid rgba(200,16,46,0.25);
+  padding: 8px 24px;
+  display: flex; align-items: center; gap: 12px;
+  flex-shrink: 0;
+  animation: alertPulse 3s ease-in-out infinite;
+  cursor: pointer;
+}
+@keyframes alertPulse {
+  0%, 100% { background: linear-gradient(90deg, rgba(200,16,46,0.15) 0%, rgba(200,16,46,0.08) 50%, rgba(200,16,46,0.15) 100%); }
+  50% { background: linear-gradient(90deg, rgba(200,16,46,0.2) 0%, rgba(200,16,46,0.12) 50%, rgba(200,16,46,0.2) 100%); }
+}
+.alert-icon {
+  width: 20px; height: 20px;
+  background: var(--blood);
+  border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 10px;
+  flex-shrink: 0;
+  animation: alertBounce 1s ease-in-out infinite;
+}
+@keyframes alertBounce {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.15); }
+}
+.alert-text { font-size: 13px; font-weight: 500; }
+.alert-text strong { color: var(--blood); }
+.alert-time { font-size: 11px; color: var(--text-muted); margin-left: auto; font-family: 'JetBrains Mono', monospace; }
+.alert-action {
+  background: var(--blood);
+  color: white;
+  border: none;
+  padding: 5px 14px;
+  font-family: 'Space Grotesk', sans-serif;
+  font-size: 11px;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  border-radius: 3px;
+  cursor: pointer;
+  transition: background 0.2s;
+  flex-shrink: 0;
+}
+.alert-action:hover { background: #E8314A; }
+
+/* MAIN LAYOUT */
+.main-layout {
+  display: flex;
+  flex: 1;
+  overflow: hidden;
+}
+
+/* SIDEBAR */
+.sidebar {
+  width: 220px;
+  background: var(--surface);
+  border-right: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  flex-shrink: 0;
+  padding: 16px 0;
+}
+
+.nav-section-label {
+  font-size: 9px;
+  letter-spacing: 2.5px;
+  text-transform: uppercase;
+  color: var(--text-dim);
+  padding: 0 18px;
+  margin-bottom: 6px;
+  margin-top: 16px;
+}
+.nav-section-label:first-child { margin-top: 0; }
+
+.nav-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 18px;
+  cursor: pointer;
+  color: var(--text-muted);
+  font-size: 13px;
+  font-weight: 400;
+  transition: all 0.2s;
+  position: relative;
+  border-left: 2px solid transparent;
+  text-decoration: none;
+}
+.nav-item:hover { color: var(--text); background: rgba(255,255,255,0.03); }
+.nav-item.active {
+  color: var(--text);
+  background: rgba(200,16,46,0.08);
+  border-left-color: var(--blood);
+}
+.nav-item svg { width: 15px; height: 15px; flex-shrink: 0; }
+.nav-badge {
+  margin-left: auto;
+  background: var(--blood);
+  color: white;
+  font-size: 10px;
+  font-weight: 600;
+  padding: 1px 6px;
+  border-radius: 8px;
+  min-width: 18px;
+  text-align: center;
+}
+.nav-badge.green { background: var(--green); color: #000; }
+.nav-badge.amber { background: var(--amber); color: #000; }
+
+/* CONTENT */
+.content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background: var(--bg);
+}
+
+.content-inner {
+  flex: 1;
+  overflow-y: auto;
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+.content-inner::-webkit-scrollbar { width: 4px; }
+.content-inner::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+
+/* PAGE HEADER */
+.page-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+}
+.page-title {
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 32px;
+  letter-spacing: 2px;
+  line-height: 1;
+}
+.page-sub { font-size: 13px; color: var(--text-muted); margin-top: 4px; }
+
+.header-actions { display: flex; gap: 10px; }
+.btn-sm {
+  display: flex; align-items: center; gap: 6px;
+  padding: 8px 16px;
+  font-family: 'Space Grotesk', sans-serif;
+  font-size: 12px;
+  letter-spacing: 0.5px;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.2s;
+  border: none;
+}
+.btn-danger { background: var(--blood); color: white; }
+.btn-danger:hover { background: #E8314A; }
+.btn-ghost {
+  background: rgba(255,255,255,0.05);
+  border: 1px solid var(--border);
+  color: var(--text-muted);
+}
+.btn-ghost:hover { border-color: rgba(255,255,255,0.15); color: var(--text); }
+
+/* KPI CARDS */
+.kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 12px;
+}
+
+.kpi-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 18px 20px;
+  position: relative;
+  overflow: hidden;
+  transition: border-color 0.3s;
+}
+.kpi-card:hover { border-color: rgba(255,255,255,0.12); }
+.kpi-card::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 2px;
+  background: var(--accent-color, var(--blood));
+  opacity: 0;
+  transition: opacity 0.3s;
+}
+.kpi-card:hover::before { opacity: 1; }
+.kpi-card.critical { --accent-color: var(--blood); }
+.kpi-card.active { --accent-color: var(--amber); }
+.kpi-card.matched { --accent-color: var(--green); }
+.kpi-card.donors { --accent-color: var(--blue); }
+
+.kpi-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
+.kpi-label { font-size: 11px; letter-spacing: 1.5px; text-transform: uppercase; color: var(--text-muted); }
+.kpi-icon {
+  width: 28px; height: 28px;
+  border-radius: 6px;
+  display: flex; align-items: center; justify-content: center;
+}
+.kpi-icon.red { background: var(--blood-dim); }
+.kpi-icon.amber { background: var(--amber-dim); }
+.kpi-icon.green { background: var(--green-dim); }
+.kpi-icon.blue { background: var(--blue-dim); }
+
+.kpi-value {
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 42px;
+  letter-spacing: 2px;
+  line-height: 1;
+  margin-bottom: 6px;
+}
+.kpi-card.critical .kpi-value { color: var(--blood); }
+.kpi-card.active .kpi-value { color: var(--amber); }
+.kpi-card.matched .kpi-value { color: var(--green); }
+.kpi-card.donors .kpi-value { color: var(--blue); }
+
+.kpi-trend { display: flex; align-items: center; gap: 6px; font-size: 11px; color: var(--text-muted); }
+.kpi-up { color: var(--green); }
+.kpi-down { color: var(--blood); }
+
+/* BOTTOM GRID */
+.bottom-grid {
+  display: grid;
+  grid-template-columns: 1fr 380px;
+  gap: 16px;
+  flex: 1;
+  min-height: 0;
+}
+
+/* REQUEST TABLE */
+.panel {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.panel-header {
+  padding: 14px 18px;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-shrink: 0;
+}
+.panel-title { font-size: 13px; font-weight: 600; letter-spacing: 0.5px; }
+.panel-count {
+  font-size: 11px;
+  background: var(--blood-dim);
+  border: 1px solid var(--border-active);
+  color: var(--blood);
+  padding: 1px 7px;
+  border-radius: 8px;
+}
+.panel-actions { margin-left: auto; display: flex; gap: 8px; }
+
+.filter-btn {
+  padding: 4px 10px;
+  font-size: 11px;
+  border-radius: 3px;
+  cursor: pointer;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--text-muted);
+  font-family: 'Space Grotesk', sans-serif;
+  transition: all 0.2s;
+  letter-spacing: 0.5px;
+}
+.filter-btn:hover, .filter-btn.active {
+  border-color: var(--border-active);
+  color: var(--blood);
+  background: var(--blood-dim);
+}
+
+/* TABLE */
+.table-wrap { flex: 1; overflow-y: auto; }
+.table-wrap::-webkit-scrollbar { width: 3px; }
+.table-wrap::-webkit-scrollbar-thumb { background: var(--border); }
+
+table { width: 100%; border-collapse: collapse; }
+thead th {
+  font-size: 10px;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  color: var(--text-dim);
+  padding: 10px 18px;
+  text-align: left;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface);
+  position: sticky; top: 0; z-index: 10;
+  font-weight: 400;
+}
+tbody tr {
+  border-bottom: 1px solid var(--border);
+  transition: background 0.2s;
+  cursor: pointer;
+}
+tbody tr:hover { background: rgba(255,255,255,0.025); }
+tbody tr.new-row {
+  animation: rowEntrance 0.5s ease forwards;
+}
+@keyframes rowEntrance {
+  from { background: rgba(200,16,46,0.15); opacity: 0; transform: translateX(-10px); }
+  to { background: transparent; opacity: 1; transform: translateX(0); }
+}
+td { padding: 11px 18px; font-size: 13px; }
+
+.urgency-badge {
+  display: inline-flex; align-items: center; gap: 5px;
+  font-size: 10px;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  padding: 3px 8px;
+  border-radius: 3px;
+  font-weight: 600;
+}
+.urgency-badge.critical {
+  background: rgba(200,16,46,0.15);
+  border: 1px solid rgba(200,16,46,0.4);
+  color: #F87171;
+}
+.urgency-badge.high {
+  background: var(--amber-dim);
+  border: 1px solid rgba(245,158,11,0.35);
+  color: var(--amber);
+}
+.urgency-badge.normal {
+  background: var(--green-dim);
+  border: 1px solid rgba(0,200,150,0.3);
+  color: var(--green);
+}
+.urgency-dot { width: 5px; height: 5px; border-radius: 50%; background: currentColor; }
+.urgency-badge.critical .urgency-dot { animation: blinkDot 1s ease-in-out infinite; }
+@keyframes blinkDot { 0%, 100% { opacity: 1; } 50% { opacity: 0.2; } }
+
+.blood-tag {
+  display: inline-block;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--blood);
+  background: var(--blood-dim);
+  border: 1px solid rgba(200,16,46,0.2);
+  padding: 2px 8px;
+  border-radius: 3px;
+  letter-spacing: 1px;
+}
+
+.status-badge {
+  display: inline-flex; align-items: center; gap: 5px;
+  font-size: 11px;
+  padding: 3px 8px;
+  border-radius: 10px;
+  letter-spacing: 0.5px;
+}
+.status-badge.searching { background: var(--amber-dim); color: var(--amber); }
+.status-badge.matched { background: var(--green-dim); color: var(--green); }
+.status-badge.pending { background: rgba(100,100,120,0.2); color: var(--text-muted); }
+.status-dot { width: 5px; height: 5px; border-radius: 50%; background: currentColor; }
+.status-badge.searching .status-dot { animation: blinkDot 1.5s ease-in-out infinite; }
+
+.action-row { display: flex; gap: 6px; }
+.act-btn {
+  padding: 4px 10px;
+  border-radius: 3px;
+  font-size: 11px;
+  cursor: pointer;
+  border: none;
+  font-family: 'Space Grotesk', sans-serif;
+  transition: all 0.2s;
+}
+.act-btn.sos { background: var(--blood); color: white; letter-spacing: 1px; font-weight: 600; }
+.act-btn.sos:hover { background: #E8314A; }
+.act-btn.view { background: var(--surface3); color: var(--text-muted); }
+.act-btn.view:hover { color: var(--text); }
+
+/* RADAR PANEL */
+.radar-panel { display: flex; flex-direction: column; }
+
+.radar-map {
+  height: 220px;
+  background: var(--surface2);
+  border-bottom: 1px solid var(--border);
+  position: relative;
+  overflow: hidden;
+  flex-shrink: 0;
+}
+.radar-grid {
+  position: absolute; inset: 0;
+  background-image:
+    linear-gradient(rgba(200,16,46,0.05) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(200,16,46,0.05) 1px, transparent 1px);
+  background-size: 30px 30px;
+}
+.radar-rings {
+  position: absolute; top: 50%; left: 50%;
+  transform: translate(-50%, -50%);
+}
+.r-ring {
+  position: absolute;
+  border: 1px solid rgba(200,16,46,0.15);
+  border-radius: 50%;
+  top: 50%; left: 50%;
+  transform: translate(-50%, -50%);
+}
+.r-ring:nth-child(1) { width: 80px; height: 80px; border-color: rgba(200,16,46,0.3); }
+.r-ring:nth-child(2) { width: 140px; height: 140px; }
+.r-ring:nth-child(3) { width: 200px; height: 200px; }
+
+.r-sweep {
+  position: absolute;
+  top: 50%; left: 50%;
+  width: 100px; height: 2px;
+  transform-origin: 0 50%;
+  background: linear-gradient(90deg, rgba(200,16,46,0.8), transparent);
+  animation: sweep 3s linear infinite;
+}
+@keyframes sweep { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+
+.r-hospital {
+  position: absolute; top: 50%; left: 50%;
+  transform: translate(-50%, -50%);
+  width: 14px; height: 14px;
+  background: var(--blood);
+  border-radius: 50%;
+  box-shadow: 0 0 16px var(--blood-glow);
+  z-index: 5;
+}
+
+.r-donor {
+  position: absolute;
+  width: 26px; height: 26px;
+  border-radius: 50%;
+  background: var(--surface3);
+  border: 1.5px solid rgba(200,16,46,0.4);
+  display: flex; align-items: center; justify-content: center;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 9px;
+  color: var(--blood);
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+  z-index: 4;
+}
+.r-donor:hover { border-color: var(--blood); background: var(--blood); color: white; }
+.r-donor.ping { animation: donorPing 2s ease forwards; }
+@keyframes donorPing {
+  0% { box-shadow: 0 0 0 0 rgba(200,16,46,0.7); }
+  70% { box-shadow: 0 0 0 12px rgba(200,16,46,0); }
+  100% { box-shadow: 0 0 0 0 rgba(200,16,46,0); }
+}
+
+.radar-controls {
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--border);
+  display: flex; gap: 8px; align-items: center;
+  flex-shrink: 0;
+  background: var(--surface2);
+}
+.radar-label { font-size: 10px; letter-spacing: 1.5px; text-transform: uppercase; color: var(--text-dim); }
+.radar-input {
+  flex: 1;
+  background: var(--surface3);
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  padding: 5px 10px;
+  font-family: 'Space Grotesk', sans-serif;
+  font-size: 12px;
+  color: var(--text);
+  outline: none;
+  transition: border-color 0.2s;
+}
+.radar-input:focus { border-color: var(--border-active); }
+.radar-select {
+  background: var(--surface3);
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  padding: 5px 10px;
+  font-family: 'Space Grotesk', sans-serif;
+  font-size: 12px;
+  color: var(--text);
+  outline: none;
+  cursor: pointer;
+}
+.sos-btn {
+  background: var(--blood);
+  color: white;
+  border: none;
+  padding: 6px 14px;
+  border-radius: 3px;
+  font-family: 'Space Grotesk', sans-serif;
+  font-size: 11px;
+  letter-spacing: 1.5px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s;
+  flex-shrink: 0;
+}
+.sos-btn:hover { background: #E8314A; transform: scale(1.02); }
+.sos-btn:active { transform: scale(0.98); }
+
+/* DONOR LIST IN PANEL */
+.donor-results {
+  flex: 1;
+  overflow-y: auto;
+  padding: 10px 14px;
+}
+.donor-results::-webkit-scrollbar { width: 3px; }
+.donor-results::-webkit-scrollbar-thumb { background: var(--border); }
+
+.donor-result-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 10px;
+  border-radius: 5px;
+  cursor: pointer;
+  transition: background 0.2s;
+  border: 1px solid transparent;
+  margin-bottom: 4px;
+}
+.donor-result-item:hover {
+  background: var(--surface2);
+  border-color: var(--border);
+}
+.donor-result-item.selected {
+  background: var(--blood-dim);
+  border-color: var(--border-active);
+}
+
+.d-avatar {
+  width: 34px; height: 34px;
+  border-radius: 50%;
+  background: var(--surface3);
+  border: 1.5px solid var(--border);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 11px;
+  font-weight: 600;
+  flex-shrink: 0;
+  color: var(--text-muted);
+}
+.d-info { flex: 1; min-width: 0; }
+.d-name { font-size: 13px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.d-meta { font-size: 11px; color: var(--text-muted); margin-top: 1px; }
+.d-type {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--blood);
+  flex-shrink: 0;
+}
+.d-dist {
+  font-size: 10px;
+  color: var(--text-dim);
+  flex-shrink: 0;
+  text-align: right;
+}
+
+.section-mini-label {
+  font-size: 9px;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  color: var(--text-dim);
+  padding: 4px 0 8px;
+}
+
+/* RIGHT SIDEBAR — ACTIVITY */
+.right-sidebar {
+  width: 280px;
+  background: var(--surface);
+  border-left: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  flex-shrink: 0;
+}
+
+.rs-header {
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--border);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+  display: flex; align-items: center; justify-content: space-between;
+}
+.rs-body { flex: 1; overflow-y: auto; padding: 12px 14px; display: flex; flex-direction: column; gap: 4px; }
+.rs-body::-webkit-scrollbar { width: 3px; }
+.rs-body::-webkit-scrollbar-thumb { background: var(--border); }
+
+.activity-item {
+  display: flex;
+  gap: 10px;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--border);
+  animation: actFade 0.4s ease;
+}
+@keyframes actFade { from { opacity: 0; transform: translateY(-5px); } to { opacity: 1; transform: translateY(0); } }
+.act-timeline {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  flex-shrink: 0;
+  padding-top: 4px;
+}
+.act-dot {
+  width: 7px; height: 7px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.act-dot.red { background: var(--blood); }
+.act-dot.green { background: var(--green); }
+.act-dot.amber { background: var(--amber); }
+.act-dot.blue { background: var(--blue); }
+.act-line { width: 1px; flex: 1; background: var(--border); margin-top: 4px; }
+
+.act-content { flex: 1; }
+.act-msg { font-size: 12px; line-height: 1.5; }
+.act-msg strong { color: var(--blood); }
+.act-msg .green { color: var(--green); }
+.act-msg .amber { color: var(--amber); }
+.act-time { font-size: 10px; color: var(--text-dim); font-family: 'JetBrains Mono', monospace; margin-top: 3px; }
+
+/* Mini chart in KPI */
+.sparkline {
+  height: 28px;
+  margin-top: 6px;
+  display: flex;
+  align-items: flex-end;
+  gap: 2px;
+}
+.spark-bar {
+  flex: 1;
+  border-radius: 1px;
+  opacity: 0.4;
+  transition: opacity 0.2s;
+  min-height: 3px;
+}
+.kpi-card:hover .spark-bar { opacity: 0.7; }
+.spark-bar.accent { opacity: 1 !important; }
+
+/* SOS Toast */
+.sos-toast {
+  position: fixed;
+  bottom: 24px; right: 24px;
+  background: var(--blood);
+  color: white;
+  padding: 16px 20px;
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 500;
+  box-shadow: 0 8px 32px rgba(200,16,46,0.5);
+  transform: translateX(200%);
+  transition: transform 0.4s cubic-bezier(0.34,1.56,0.64,1);
+  z-index: 9999;
+  display: flex; align-items: center; gap: 12px;
+  max-width: 320px;
+}
+.sos-toast.show { transform: translateX(0); }
+.sos-toast-icon { font-size: 20px; }
+.sos-toast-body { flex: 1; }
+.sos-toast-title { font-weight: 700; letter-spacing: 0.5px; }
+.sos-toast-sub { font-size: 11px; opacity: 0.85; margin-top: 2px; }
+.sos-toast-close { opacity: 0.7; cursor: pointer; font-size: 16px; }
+</style>
+</head>
+<body>
+
+<!-- TOP BAR -->
+<div class="topbar">
+  <div class="topbar-logo">
+    <svg viewBox="0 0 36 36" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <path d="M18 4C18 4 6 14 6 22C6 28.627 11.373 34 18 34C24.627 34 30 28.627 30 22C30 14 18 4 18 4Z" fill="#C8102E"/>
+      <line x1="18" y1="16" x2="18" y2="28" stroke="rgba(255,255,255,0.6)" stroke-width="1.5"/>
+      <line x1="12" y1="22" x2="24" y2="22" stroke="rgba(255,255,255,0.6)" stroke-width="1.5"/>
+    </svg>
+    <span class="topbar-logo-text">BLOOD<span>LINK</span></span>
+  </div>
+  <div class="topbar-divider"></div>
+  <span class="hospital-name">Singapore General Hospital</span>
+  <span class="hospital-badge">Verified</span>
+  <div class="topbar-right">
+    <div class="live-indicator">
+      <div class="live-dot"></div>
+      Live
+    </div>
+    <div class="topbar-clock" id="clock">--:--:--</div>
+    <div class="topbar-avatar">DR</div>
+  </div>
+</div>
+
+<!-- ALERT BAR -->
+<div class="alert-bar">
+  <div class="alert-icon">🚨</div>
+  <span class="alert-text"><strong>CRITICAL REQUEST INCOMING</strong> — Patient Tan Wei Ming, O- blood type, Ward 4 ICU. No match in 8 minutes.</span>
+  <span class="alert-time" id="alertTimer">00:08:34</span>
+  <button class="alert-action" onclick="fireSOS()">DISPATCH SOS</button>
+</div>
+
+<!-- MAIN -->
+<div class="main-layout">
+  <!-- SIDEBAR -->
+  <div class="sidebar">
+    <div class="nav-section-label">Operations</div>
+    <a class="nav-item active" href="#">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>
+      Dashboard
+    </a>
+    <a class="nav-item" href="#">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M9 12l2 2 4-4M7.835 4.697a3.42 3.42 0 001.946-.806 3.42 3.42 0 014.438 0 3.42 3.42 0 001.946.806 3.42 3.42 0 013.138 3.138 3.42 3.42 0 00.806 1.946 3.42 3.42 0 010 4.438 3.42 3.42 0 00-.806 1.946 3.42 3.42 0 01-3.138 3.138 3.42 3.42 0 00-1.946.806 3.42 3.42 0 01-4.438 0 3.42 3.42 0 00-1.946-.806 3.42 3.42 0 01-3.138-3.138 3.42 3.42 0 00-.806-1.946 3.42 3.42 0 010-4.438 3.42 3.42 0 00.806-1.946 3.42 3.42 0 013.138-3.138z"/></svg>
+      Active Requests
+      <span class="nav-badge">7</span>
+    </a>
+    <a class="nav-item" href="#">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+      Donor Radar
+      <span class="nav-badge amber">12</span>
+    </a>
+    <a class="nav-item" href="#">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M22 16.92v3a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07A19.5 19.5 0 014 12 19.79 19.79 0 01.9 3.18 2 2 0 012.91 1h3a2 2 0 012 1.72c.127.96.361 1.903.7 2.81a2 2 0 01-.45 2.11L8.09 9.91A16 16 0 0014 15.91l1.27-1.27a2 2 0 012.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0122 16.92z"/></svg>
+      SOS History
+      <span class="nav-badge green">34</span>
+    </a>
+
+    <div class="nav-section-label">Management</div>
+    <a class="nav-item" href="#">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></svg>
+      Patients
+    </a>
+    <a class="nav-item" href="#">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
+      Analytics
+    </a>
+    <a class="nav-item" href="#">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="3"/><path d="M19.07 4.93a10 10 0 010 14.14M4.93 4.93a10 10 0 000 14.14"/></svg>
+      Integrations
+    </a>
+
+    <div class="nav-section-label">Account</div>
+    <a class="nav-item" href="#">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="3"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg>
+      Settings
+    </a>
+  </div>
+
+  <!-- CONTENT -->
+  <div class="content">
+    <div class="content-inner">
+
+      <!-- PAGE HEADER -->
+      <div class="page-header">
+        <div>
+          <div class="page-title">OPERATIONS DASHBOARD</div>
+          <div class="page-sub">Wednesday, 18 March 2026 · SGH Blood Services Unit</div>
+        </div>
+        <div class="header-actions">
+          <button class="btn-sm btn-ghost" onclick="addRequest()">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+            New Request
+          </button>
+          <button class="btn-sm btn-danger" onclick="fireSOS()">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="7.86 2 16.14 2 22 7.86 22 16.14 16.14 22 7.86 22 2 16.14 2 7.86 7.86 2"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+            Broadcast SOS
+          </button>
+        </div>
+      </div>
+
+      <!-- KPI CARDS -->
+      <div class="kpi-grid">
+        <div class="kpi-card critical">
+          <div class="kpi-header">
+            <span class="kpi-label">Critical</span>
+            <div class="kpi-icon red">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#C8102E" stroke-width="2"><polygon points="7.86 2 16.14 2 22 7.86 22 16.14 16.14 22 7.86 22 2 16.14 2 7.86 7.86 2"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+            </div>
+          </div>
+          <div class="kpi-value" id="kpi1">3</div>
+          <div class="kpi-trend"><span class="kpi-down">↑ 1</span> from yesterday</div>
+          <div class="sparkline">
+            <div class="spark-bar" style="height:35%;background:var(--blood)"></div>
+            <div class="spark-bar" style="height:50%;background:var(--blood)"></div>
+            <div class="spark-bar" style="height:40%;background:var(--blood)"></div>
+            <div class="spark-bar" style="height:65%;background:var(--blood)"></div>
+            <div class="spark-bar" style="height:55%;background:var(--blood)"></div>
+            <div class="spark-bar" style="height:80%;background:var(--blood)"></div>
+            <div class="spark-bar accent" style="height:100%;background:var(--blood)"></div>
+          </div>
+        </div>
+        <div class="kpi-card active">
+          <div class="kpi-header">
+            <span class="kpi-label">Active Requests</span>
+            <div class="kpi-icon amber">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#F59E0B" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+            </div>
+          </div>
+          <div class="kpi-value" style="color:var(--amber)">7</div>
+          <div class="kpi-trend"><span class="kpi-up">↑ 2</span> new today</div>
+          <div class="sparkline">
+            <div class="spark-bar" style="height:50%;background:var(--amber)"></div>
+            <div class="spark-bar" style="height:60%;background:var(--amber)"></div>
+            <div class="spark-bar" style="height:45%;background:var(--amber)"></div>
+            <div class="spark-bar" style="height:70%;background:var(--amber)"></div>
+            <div class="spark-bar" style="height:80%;background:var(--amber)"></div>
+            <div class="spark-bar" style="height:65%;background:var(--amber)"></div>
+            <div class="spark-bar accent" style="height:90%;background:var(--amber)"></div>
+          </div>
+        </div>
+        <div class="kpi-card matched">
+          <div class="kpi-header">
+            <span class="kpi-label">Matched Today</span>
+            <div class="kpi-icon green">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#00C896" stroke-width="2"><path d="M22 11.08V12a10 10 0 11-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+            </div>
+          </div>
+          <div class="kpi-value" style="color:var(--green)">12</div>
+          <div class="kpi-trend"><span class="kpi-up">↑ 4</span> vs last week</div>
+          <div class="sparkline">
+            <div class="spark-bar" style="height:40%;background:var(--green)"></div>
+            <div class="spark-bar" style="height:55%;background:var(--green)"></div>
+            <div class="spark-bar" style="height:70%;background:var(--green)"></div>
+            <div class="spark-bar" style="height:60%;background:var(--green)"></div>
+            <div class="spark-bar" style="height:85%;background:var(--green)"></div>
+            <div class="spark-bar" style="height:75%;background:var(--green)"></div>
+            <div class="spark-bar accent" style="height:100%;background:var(--green)"></div>
+          </div>
+        </div>
+        <div class="kpi-card donors">
+          <div class="kpi-header">
+            <span class="kpi-label">Nearby Donors</span>
+            <div class="kpi-icon blue">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#3B82F6" stroke-width="2"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></svg>
+            </div>
+          </div>
+          <div class="kpi-value" style="color:var(--blue)">48</div>
+          <div class="kpi-trend"><span class="kpi-up">↑ 6</span> within 10km</div>
+          <div class="sparkline">
+            <div class="spark-bar" style="height:60%;background:var(--blue)"></div>
+            <div class="spark-bar" style="height:70%;background:var(--blue)"></div>
+            <div class="spark-bar" style="height:55%;background:var(--blue)"></div>
+            <div class="spark-bar" style="height:80%;background:var(--blue)"></div>
+            <div class="spark-bar" style="height:75%;background:var(--blue)"></div>
+            <div class="spark-bar" style="height:90%;background:var(--blue)"></div>
+            <div class="spark-bar accent" style="height:85%;background:var(--blue)"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- BOTTOM GRID -->
+      <div class="bottom-grid" style="min-height:340px;">
+
+        <!-- ACTIVE REQUESTS TABLE -->
+        <div class="panel">
+          <div class="panel-header">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M9 12l2 2 4-4M7.835 4.697a3.42 3.42 0 001.946-.806 3.42 3.42 0 014.438 0 3.42 3.42 0 001.946.806 3.42 3.42 0 013.138 3.138 3.42 3.42 0 00.806 1.946 3.42 3.42 0 010 4.438 3.42 3.42 0 00-.806 1.946 3.42 3.42 0 01-3.138 3.138 3.42 3.42 0 00-1.946.806 3.42 3.42 0 01-4.438 0 3.42 3.42 0 00-1.946-.806 3.42 3.42 0 01-3.138-3.138 3.42 3.42 0 00-.806-1.946 3.42 3.42 0 010-4.438 3.42 3.42 0 00.806-1.946 3.42 3.42 0 013.138-3.138z"/></svg>
+            <span class="panel-title">Active Requests</span>
+            <span class="panel-count">7 open</span>
+            <div class="panel-actions">
+              <button class="filter-btn active">All</button>
+              <button class="filter-btn">Critical</button>
+              <button class="filter-btn">Searching</button>
+            </div>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Patient</th>
+                  <th>Blood Type</th>
+                  <th>Ward</th>
+                  <th>Urgency</th>
+                  <th>Status</th>
+                  <th>Time Open</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody id="requestTable">
+                <tr class="new-row">
+                  <td><div style="font-weight:500">Tan Wei Ming</div><div style="font-size:11px;color:var(--text-muted)">Age 54 · Male</div></td>
+                  <td><span class="blood-tag">O-</span></td>
+                  <td>ICU Ward 4</td>
+                  <td><span class="urgency-badge critical"><div class="urgency-dot"></div>Critical</span></td>
+                  <td><span class="status-badge searching"><div class="status-dot"></div>Searching</span></td>
+                  <td><span style="font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--blood)">00:08:34</span></td>
+                  <td><div class="action-row"><button class="act-btn sos" onclick="fireSOS()">SOS</button><button class="act-btn view">View</button></div></td>
+                </tr>
+                <tr>
+                  <td><div style="font-weight:500">Priya Nair</div><div style="font-size:11px;color:var(--text-muted)">Age 31 · Female</div></td>
+                  <td><span class="blood-tag">AB-</span></td>
+                  <td>Surgical B2</td>
+                  <td><span class="urgency-badge critical"><div class="urgency-dot"></div>Critical</span></td>
+                  <td><span class="status-badge matched"><div class="status-dot"></div>Matched</span></td>
+                  <td><span style="font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--text-muted)">00:03:12</span></td>
+                  <td><div class="action-row"><button class="act-btn view">View</button></div></td>
+                </tr>
+                <tr>
+                  <td><div style="font-weight:500">Ahmad Razif</div><div style="font-size:11px;color:var(--text-muted)">Age 67 · Male</div></td>
+                  <td><span class="blood-tag">B+</span></td>
+                  <td>General C1</td>
+                  <td><span class="urgency-badge high"><div class="urgency-dot"></div>High</span></td>
+                  <td><span class="status-badge searching"><div class="status-dot"></div>Searching</span></td>
+                  <td><span style="font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--text-muted)">00:22:05</span></td>
+                  <td><div class="action-row"><button class="act-btn sos" onclick="fireSOS()">SOS</button><button class="act-btn view">View</button></div></td>
+                </tr>
+                <tr>
+                  <td><div style="font-weight:500">Chen Li Xian</div><div style="font-size:11px;color:var(--text-muted)">Age 28 · Female</div></td>
+                  <td><span class="blood-tag">A+</span></td>
+                  <td>Maternity D3</td>
+                  <td><span class="urgency-badge critical"><div class="urgency-dot"></div>Critical</span></td>
+                  <td><span class="status-badge searching"><div class="status-dot"></div>Searching</span></td>
+                  <td><span style="font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--blood)">00:15:44</span></td>
+                  <td><div class="action-row"><button class="act-btn sos" onclick="fireSOS()">SOS</button><button class="act-btn view">View</button></div></td>
+                </tr>
+                <tr>
+                  <td><div style="font-weight:500">David Lim</div><div style="font-size:11px;color:var(--text-muted)">Age 45 · Male</div></td>
+                  <td><span class="blood-tag">O+</span></td>
+                  <td>Cardiac A1</td>
+                  <td><span class="urgency-badge high"><div class="urgency-dot"></div>High</span></td>
+                  <td><span class="status-badge matched"><div class="status-dot"></div>Matched</span></td>
+                  <td><span style="font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--text-muted)">00:31:20</span></td>
+                  <td><div class="action-row"><button class="act-btn view">View</button></div></td>
+                </tr>
+                <tr>
+                  <td><div style="font-weight:500">Fatimah Binte</div><div style="font-size:11px;color:var(--text-muted)">Age 72 · Female</div></td>
+                  <td><span class="blood-tag">A-</span></td>
+                  <td>Geriatric E2</td>
+                  <td><span class="urgency-badge normal"><div class="urgency-dot"></div>Normal</span></td>
+                  <td><span class="status-badge pending"><div class="status-dot"></div>Pending</span></td>
+                  <td><span style="font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--text-muted)">01:04:11</span></td>
+                  <td><div class="action-row"><button class="act-btn sos" onclick="fireSOS()">SOS</button><button class="act-btn view">View</button></div></td>
+                </tr>
+                <tr>
+                  <td><div style="font-weight:500">Ravi Subramaniam</div><div style="font-size:11px;color:var(--text-muted)">Age 39 · Male</div></td>
+                  <td><span class="blood-tag">B-</span></td>
+                  <td>Trauma F1</td>
+                  <td><span class="urgency-badge high"><div class="urgency-dot"></div>High</span></td>
+                  <td><span class="status-badge searching"><div class="status-dot"></div>Searching</span></td>
+                  <td><span style="font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--text-muted)">00:44:50</span></td>
+                  <td><div class="action-row"><button class="act-btn sos" onclick="fireSOS()">SOS</button><button class="act-btn view">View</button></div></td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- DONOR RADAR PANEL -->
+        <div class="panel radar-panel">
+          <div class="panel-header">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+            <span class="panel-title">Donor Radar</span>
+            <span class="panel-count" style="background:var(--blue-dim);border-color:rgba(59,130,246,0.3);color:var(--blue)">12 found</span>
+          </div>
+          <div class="radar-map">
+            <div class="radar-grid"></div>
+            <div class="radar-rings">
+              <div class="r-ring"></div>
+              <div class="r-ring"></div>
+              <div class="r-ring"></div>
+              <div class="r-sweep"></div>
+            </div>
+            <div class="r-hospital"></div>
+            <div class="r-donor ping" style="top:25%;left:55%">O-</div>
+            <div class="r-donor" style="top:40%;left:65%">O+</div>
+            <div class="r-donor" style="top:55%;left:38%">AB-</div>
+            <div class="r-donor" style="top:65%;left:60%">B+</div>
+            <div class="r-donor" style="top:30%;left:35%">A+</div>
+            <div class="r-donor" style="top:70%;left:45%">O-</div>
+          </div>
+          <div class="radar-controls">
+            <select class="radar-select" style="width:60px">
+              <option>O-</option><option>O+</option><option>AB-</option><option>AB+</option><option>B-</option><option>B+</option><option>A-</option><option>A+</option>
+            </select>
+            <input type="range" class="radar-input" min="1" max="20" value="5" oninput="updateRadius(this)" style="padding:8px 10px;cursor:pointer">
+            <span style="font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--text-muted);white-space:nowrap;" id="radiusLabel">5 km</span>
+            <button class="sos-btn" onclick="fireSOS()">⚡ SOS</button>
+          </div>
+          <div class="donor-results">
+            <div class="section-mini-label">Eligible Donors · Sorted by Distance</div>
+            <div class="donor-result-item selected">
+              <div class="d-avatar" style="border-color:rgba(200,16,46,0.4);color:var(--blood)">SK</div>
+              <div class="d-info">
+                <div class="d-name">Suresh Kumar</div>
+                <div class="d-meta">Last donated 95 days ago · Eligible ✓</div>
+              </div>
+              <div class="d-type">O-</div>
+              <div class="d-dist">0.9 km</div>
+            </div>
+            <div class="donor-result-item">
+              <div class="d-avatar">JT</div>
+              <div class="d-info">
+                <div class="d-name">James Tan</div>
+                <div class="d-meta">Last donated 102 days ago · Eligible ✓</div>
+              </div>
+              <div class="d-type">O-</div>
+              <div class="d-dist">1.8 km</div>
+            </div>
+            <div class="donor-result-item">
+              <div class="d-avatar">RL</div>
+              <div class="d-info">
+                <div class="d-name">Raj Lingam</div>
+                <div class="d-meta">Last donated 118 days ago · Eligible ✓</div>
+              </div>
+              <div class="d-type">O-</div>
+              <div class="d-dist">2.4 km</div>
+            </div>
+            <div class="donor-result-item">
+              <div class="d-avatar">MW</div>
+              <div class="d-info">
+                <div class="d-name">Maya Wong</div>
+                <div class="d-meta">Last donated 91 days ago · Eligible ✓</div>
+              </div>
+              <div class="d-type">O-</div>
+              <div class="d-dist">3.1 km</div>
+            </div>
+            <div class="donor-result-item">
+              <div class="d-avatar">AP</div>
+              <div class="d-info">
+                <div class="d-name">Amir Patel</div>
+                <div class="d-meta">Last donated 135 days ago · Eligible ✓</div>
+              </div>
+              <div class="d-type">O-</div>
+              <div class="d-dist">4.7 km</div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+  <!-- RIGHT SIDEBAR — ACTIVITY FEED -->
+  <div class="right-sidebar">
+    <div class="rs-header">
+      Live Activity
+      <span style="font-size:10px;color:var(--text-dim);letter-spacing:1px;font-weight:400">REAL-TIME</span>
+    </div>
+    <div class="rs-body" id="activityFeed">
+      <div class="activity-item">
+        <div class="act-timeline"><div class="act-dot red"></div><div class="act-line"></div></div>
+        <div class="act-content">
+          <div class="act-msg"><strong>CRITICAL REQUEST</strong> — Tan Wei Ming, O-, ICU Ward 4</div>
+          <div class="act-time">2 min ago</div>
+        </div>
+      </div>
+      <div class="activity-item">
+        <div class="act-timeline"><div class="act-dot green"></div><div class="act-line"></div></div>
+        <div class="act-content">
+          <div class="act-msg"><span class="green">Match found</span> — Priya Nair (AB-) · Donor Siti accepted</div>
+          <div class="act-time">5 min ago</div>
+        </div>
+      </div>
+      <div class="activity-item">
+        <div class="act-timeline"><div class="act-dot amber"></div><div class="act-line"></div></div>
+        <div class="act-content">
+          <div class="act-msg"><span class="amber">SOS Broadcast</span> — 8 donors pinged for Ahmad Razif (B+)</div>
+          <div class="act-time">22 min ago</div>
+        </div>
+      </div>
+      <div class="activity-item">
+        <div class="act-timeline"><div class="act-dot green"></div><div class="act-line"></div></div>
+        <div class="act-content">
+          <div class="act-msg"><span class="green">Donation Complete</span> — David Lim request fulfilled</div>
+          <div class="act-time">31 min ago</div>
+        </div>
+      </div>
+      <div class="activity-item">
+        <div class="act-timeline"><div class="act-dot red"></div><div class="act-line"></div></div>
+        <div class="act-content">
+          <div class="act-msg"><strong>High Request</strong> — Chen Li Xian, A+, Maternity D3</div>
+          <div class="act-time">45 min ago</div>
+        </div>
+      </div>
+      <div class="activity-item">
+        <div class="act-timeline"><div class="act-dot blue"></div><div class="act-line"></div></div>
+        <div class="act-content">
+          <div class="act-msg" style="color:var(--blue)">3 new donors registered</div>
+          <div class="act-time">1h ago</div>
+        </div>
+      </div>
+      <div class="activity-item">
+        <div class="act-timeline"><div class="act-dot green"></div><div class="act-line"></div></div>
+        <div class="act-content">
+          <div class="act-msg"><span class="green">Match found</span> — Rajan S. (O+) · 1.3km away</div>
+          <div class="act-time">1h 12m ago</div>
+        </div>
+      </div>
+      <div class="activity-item">
+        <div class="act-timeline"><div class="act-dot amber"></div></div>
+        <div class="act-content">
+          <div class="act-msg"><span class="amber">SOS Sent</span> — 12 donors pinged · 3 replied</div>
+          <div class="act-time">2h ago</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- SOS TOAST -->
+<div class="sos-toast" id="sosToast">
+  <div class="sos-toast-icon">⚡</div>
+  <div class="sos-toast-body">
+    <div class="sos-toast-title">SOS BROADCAST SENT</div>
+    <div class="sos-toast-sub">12 eligible donors notified within 5km radius</div>
+  </div>
+  <div class="sos-toast-close" onclick="closeToast()">✕</div>
+</div>
+
+<script>
+  // Clock
+  function updateClock() {
+    const now = new Date();
+    document.getElementById('clock').textContent =
+      now.toLocaleTimeString('en-SG', { hour12: false });
+  }
+  setInterval(updateClock, 1000);
+  updateClock();
+
+  // Alert timer countdown
+  let alertSecs = 8 * 60 + 34;
+  setInterval(() => {
+    alertSecs++;
+    const m = String(Math.floor(alertSecs / 60)).padStart(2, '0');
+    const s = String(alertSecs % 60).padStart(2, '0');
+    document.getElementById('alertTimer').textContent = `00:${m}:${s}`;
+  }, 1000);
+
+  // SOS
+  function fireSOS() {
+    const toast = document.getElementById('sosToast');
+    toast.classList.add('show');
+    setTimeout(() => toast.classList.remove('show'), 4000);
+    // Add activity
+    addActivity('red', '⚡ SOS Broadcast sent — 12 donors pinged for Tan Wei Ming (O-)', 'Just now');
+    // Ping all radar donors
+    document.querySelectorAll('.r-donor').forEach((d, i) => {
+      setTimeout(() => { d.classList.remove('ping'); void d.offsetWidth; d.classList.add('ping'); }, i * 200);
+    });
+  }
+
+  function closeToast() {
+    document.getElementById('sosToast').classList.remove('show');
+  }
+
+  // Radius label
+  function updateRadius(el) {
+    document.getElementById('radiusLabel').textContent = el.value + ' km';
+  }
+
+  // Activity feed
+  function addActivity(color, msg, time) {
+    const feed = document.getElementById('activityFeed');
+    const item = document.createElement('div');
+    item.className = 'activity-item';
+    item.innerHTML = `
+      <div class="act-timeline"><div class="act-dot ${color}"></div></div>
+      <div class="act-content">
+        <div class="act-msg">${msg}</div>
+        <div class="act-time">${time}</div>
+      </div>
+    `;
+    feed.insertBefore(item, feed.firstChild);
+  }
+
+  // Simulated live activity
+  const events = [
+    { delay: 15000, color: 'green', msg: '<span class="green">Donor responded</span> — Suresh Kumar (O-) · ETA 12 min', time: 'Just now' },
+    { delay: 30000, color: 'blue', msg: 'New donor registered — Lin Mei (AB-) · 2.1km', time: 'Just now' },
+    { delay: 50000, color: 'amber', msg: '<span class="amber">Request updated</span> — Ahmad Razif upgraded to Critical', time: 'Just now' },
+    { delay: 70000, color: 'red', msg: '<strong>NEW REQUEST</strong> — Kumar V., B+, Emergency Dept', time: 'Just now' },
+  ];
+  events.forEach(e => {
+    setTimeout(() => addActivity(e.color, e.msg, e.time), e.delay);
+  });
+
+  // Filter buttons
+  document.querySelectorAll('.filter-btn').forEach(btn => {
+    btn.addEventListener('click', function() {
+      document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+      this.classList.add('active');
+    });
+  });
+
+  // Table rows click
+  document.querySelectorAll('tbody tr').forEach(row => {
+    row.addEventListener('click', function() {
+      document.querySelectorAll('tbody tr').forEach(r => r.style.background = '');
+      this.style.background = 'rgba(200,16,46,0.05)';
+    });
+  });
+
+  function addRequest() {
+    alert('New Request modal would open here — Patient info, blood type, ward, urgency level.');
+  }
+</script>
+</body>
+</html>
