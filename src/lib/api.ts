@@ -6,7 +6,7 @@ import {
 } from "@/lib/session";
 
 export const API_BASE_URL =
-  process.env.NEXT_PUBLIC_API_BASE_URL || "http://127.0.0.1:8000/api";
+  process.env.NEXT_PUBLIC_API_BASE_URL || "https://blood-link-zeta.vercel.app/api";
 
 type RequestOptions = {
   method?: "GET" | "POST" | "PATCH" | "DELETE";
@@ -364,16 +364,21 @@ export type RequestActionPayload = {
 };
 
 export async function login(email: string, password: string): Promise<TokenResponse> {
+  const normalizedEmail = email.trim().toLowerCase();
   return apiRequest<TokenResponse>("/auth/token/", {
     method: "POST",
-    body: { email, password },
+    body: { email: normalizedEmail, password },
   });
 }
 
 export async function registerUser(payload: RegisterPayload): Promise<Partial<UserMe>> {
+  const normalizedEmail = payload.email.trim().toLowerCase();
   return apiRequest<Partial<UserMe>>("/auth/register/", {
     method: "POST",
-    body: payload,
+    body: {
+      ...payload,
+      email: normalizedEmail,
+    },
   });
 }
 

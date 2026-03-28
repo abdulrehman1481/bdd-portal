@@ -22,6 +22,7 @@ import {
 import { RequireRole } from "@/components/AuthGuards";
 import ConfirmModal from "@/components/ConfirmModal";
 import ToastStack from "@/components/ToastStack";
+import ThemeToggle from "@/components/ThemeToggle";
 import { getStoredToken } from "@/lib/session";
 import { useToastQueue } from "@/lib/useToastQueue";
 
@@ -191,8 +192,9 @@ export default function RequestDetailPage() {
         <section className="container hero">
           <div className="dashboard-topbar section">
             <div className="topbar-logo">BloodLink</div>
-            <div className="topbar-search-wrap"><input className="topbar-search-input" placeholder="Search request actions..." /></div>
+            <div style={{ flex: 1 }}></div>
             <div className="topbar-right">
+              <ThemeToggle />
               <button className="btn" onClick={() => router.back()}>Back</button>
             </div>
           </div>
@@ -220,67 +222,102 @@ export default function RequestDetailPage() {
             </div>
           ) : (
             <>
-              <div className="split section">
-                <div className="panel">
-                  <div className="panel-head"><div className="panel-title">Request Info</div></div>
-                  <div style={{ padding: 14 }}>
-                    <div className="notice"><strong>Patient:</strong> {requestItem.patient_name}</div>
-                    <div className="notice"><strong>Blood Group:</strong> {requestItem.blood_group_needed}</div>
-                    {requestItem.description ? <div className="notice"><strong>Description:</strong> {requestItem.description}</div> : null}
-                    <div className="notice"><strong>Urgency:</strong> {requestItem.urgency}</div>
-                    <div className="notice"><strong>Status:</strong> {requestItem.status}</div>
-                    <div className="notice"><strong>Units:</strong> {requestItem.units_fulfilled}/{requestItem.units_required}</div>
-                    <div className="notice"><strong>Required By:</strong> {new Date(requestItem.required_by_datetime).toLocaleString()}</div>
-                    <div className="notice"><strong>Center:</strong> {requestItem.hospital_name}</div>
+              {/* REQUEST HEADER WITH KEY INFO */}
+              <div className="request-header section">
+                <div className="request-header-top">
+                  <div className="request-title-group">
+                    <div className="request-patient">{requestItem.patient_name}</div>
+                    <div className="request-meta-top">
+                      <div className="request-hospital">{requestItem.hospital_name}</div>
+                      <div className="request-datetime">{new Date(requestItem.required_by_datetime).toLocaleString()}</div>
+                    </div>
                   </div>
                 </div>
 
-                <div className="panel">
-                  <div className="panel-head"><div className="panel-title">Actions</div></div>
-                  <div style={{ padding: 14 }}>
-                    {isActionable ? (
-                      isOwner ? (
-                        <div className="actions compact-actions">
-                          <button className="btn btn-primary" onClick={() => void handleStatusUpdate("FULFILLED")} disabled={loading}>Mark as Fulfilled</button>
-                          <button className="btn" onClick={() => void handleStatusUpdate("CLOSED")} disabled={loading}>No Longer Needed / Close</button>
-                        </div>
-                      ) : (
-                        <div className="actions compact-actions">
-                          <button
-                            className="btn btn-primary"
-                            onClick={() => void handleAction("VOLUNTEER")}
-                            disabled={loading}
-                          >
-                            {myActionTypes.has("VOLUNTEER") ? "Volunteer Sent" : "Volunteer to Donate"}
-                          </button>
-                          <button
-                            className="btn"
-                            onClick={() => void handleAction("SUPPORT")}
-                            disabled={loading}
-                          >
-                            {myActionTypes.has("SUPPORT") ? "Support Sent" : "Support/Share"}
-                          </button>
-                          <button
-                            className="btn btn-subtle"
-                            onClick={() => void handleAction("FLAG")}
-                            disabled={loading}
-                          >
-                            {myActionTypes.has("FLAG") ? "Flagged" : "Flag"}
-                          </button>
-                        </div>
-                      )
-                    ) : (
-                      <div className="badge resolved">Resolved • {requestItem.status}</div>
-                    )}
-                    <div className="actions compact-actions" style={{ marginTop: 10 }}>
-                      <button className="btn" onClick={() => void loadData(token)} disabled={loading}>Refresh Activity</button>
-                      <Link href={role === "HOSPITAL" ? "/dashboard/hospital?tab=requests" : "/dashboard/donor?tab=requests"} className="btn btn-primary">
-                        Back to Requests
-                      </Link>
+                <div className="request-header-bottom">
+                  <div className="request-stat">
+                    <div className="request-stat-label">Blood Group</div>
+                    <div className="request-stat-value">{requestItem.blood_group_needed}</div>
+                  </div>
+
+                  <div className="request-stat">
+                    <div className="request-stat-label">Urgency Level</div>
+                    <div className="request-stat-value" className={requestItem.urgency === "CRITICAL" ? "critical" : requestItem.urgency === "URGENT" ? "urgent" : "fulfilled"}>
+                      {requestItem.urgency}
+                    </div>
+                  </div>
+
+                  <div className="request-stat">
+                    <div className="request-stat-label">Current Status</div>
+                    <div>
+                      <span className={`request-stat-badge ${requestItem.status === "FULFILLED" || requestItem.status === "CLOSED" ? "fulfilled" : requestItem.status === "ACTIVE" ? "urgent" : "critical"}`}>
+                        {requestItem.status}
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="request-stat">
+                    <div className="request-stat-label">Units Fulfilled</div>
+                    <div className="request-stat-value">{requestItem.units_fulfilled}/{requestItem.units_required}</div>
+                    <div className="request-progress-section" style={{ marginTop: 8 }}>
+                      <div className="request-progress-bar">
+                        <div className="request-progress-fill" style={{ width: `${Math.min((requestItem.units_fulfilled / requestItem.units_required) * 100, 100)}%` }}></div>
+                      </div>
                     </div>
                   </div>
                 </div>
               </div>
+
+              {/* ACTION BUTTONS */}
+              <div className="section">
+                <div className="actions" style={{ gap: 10 }}>
+                  {isActionable ? (
+                    isOwner ? (
+                      <>
+                        <button className="btn btn-success" onClick={() => void handleStatusUpdate("FULFILLED")} disabled={loading}>Mark as Fulfilled</button>
+                        <button className="btn btn-danger-soft" onClick={() => void handleStatusUpdate("CLOSED")} disabled={loading}>Close Request</button>
+                      </>
+                    ) : (
+                      <>
+                        <button
+                          className="btn btn-primary"
+                          onClick={() => void handleAction("VOLUNTEER")}
+                          disabled={loading}
+                        >
+                          {myActionTypes.has("VOLUNTEER") ? "✓ Volunteer Sent" : "Volunteer to Donate"}
+                        </button>
+                        <button
+                          className="btn"
+                          onClick={() => void handleAction("SUPPORT")}
+                          disabled={loading}
+                        >
+                          {myActionTypes.has("SUPPORT") ? "✓ Support Sent" : "Support/Share"}
+                        </button>
+                        <button
+                          className="btn btn-subtle"
+                          onClick={() => void handleAction("FLAG")}
+                          disabled={loading}
+                        >
+                          {myActionTypes.has("FLAG") ? "🚩 Flagged" : "Flag Issue"}
+                        </button>
+                      </>
+                    )
+                  ) : (
+                    <div className="badge resolved">✓ Request {requestItem.status}</div>
+                  )}
+                  <button className="btn" onClick={() => void loadData(token)} disabled={loading} style={{ marginLeft: "auto" }}>Refresh</button>
+                </div>
+              </div>
+
+              {/* INFO CARDS GRID */}
+              {requestItem.description && (
+                <div className="request-info-grid section">
+                  <div className="request-info-card">
+                    <div className="request-info-card-title">📝 Description</div>
+                    <div style={{ fontSize: 14, color: "var(--text)", lineHeight: 1.6 }}>{requestItem.description}</div>
+                  </div>
+                </div>
+              )}
 
               <div className="panel section">
                 <div className="panel-head"><div className="panel-title">Map</div></div>
@@ -313,77 +350,92 @@ export default function RequestDetailPage() {
                 </div>
               </div>
 
-              <div className="panel section">
-                <div className="panel-head"><div className="panel-title">Activity Timeline</div></div>
-                <table className="table">
-                  <thead>
-                    <tr><th>When</th><th>User</th><th>Role</th><th>Action</th><th>Note</th></tr>
-                  </thead>
-                  <tbody>
-                    {actions.length ? (
-                      actions.map((item) => (
-                        <tr key={item.id}>
-                          <td>{new Date(item.created_at).toLocaleString()}</td>
-                          <td>{item.actor_email}</td>
-                          <td>{item.actor_role}</td>
-                          <td>{item.action_type}</td>
-                          <td>{item.note || "-"}</td>
-                        </tr>
-                      ))
-                    ) : (
-                      <tr><td colSpan={5}>No actions yet.</td></tr>
-                    )}
-                  </tbody>
-                </table>
+              {/* ACTIVITY TIMELINE */}
+              <div className="section">
+                <div style={{ marginBottom: 16 }}>
+                  <div className="brand">📋 Activity Log</div>
+                  <h2 style={{ fontSize: 20, fontWeight: 700, marginTop: 4, color: "var(--text)" }}>Request Timeline</h2>
+                </div>
+                <div className="activity-timeline-wrapper">
+                  {actions.length ? (
+                    actions.map((item) => (
+                      <div key={item.id} className="timeline-item">
+                        <div className="timeline-dot"></div>
+                        <div className="timeline-content">
+                          <div className="timeline-timestamp">{new Date(item.created_at).toLocaleString()}</div>
+                          <div className="timeline-action">
+                            <span className="request-stat-badge critical" style={{ margin: 0 }}>{item.action_type}</span>
+                            <span className="timeline-actor">by {item.actor_email}</span>
+                          </div>
+                          {item.note && <div className="timeline-note">{item.note}</div>}
+                        </div>
+                      </div>
+                    ))
+                  ) : (
+                    <div style={{ textAlign: "center", padding: "20px", color: "var(--text-muted)" }}>No activity yet</div>
+                  )}
+                </div>
               </div>
 
-              <div className="panel section">
-                <div className="panel-head"><div className="panel-title">Comments</div></div>
-                <div style={{ padding: 14 }}>
-                  <div style={{ marginBottom: 12 }}>
+              {/* COMMENTS SECTION */}
+              <div className="section">
+                <div style={{ marginBottom: 16 }}>
+                  <div className="brand">💬 Comments</div>
+                  <h2 style={{ fontSize: 20, fontWeight: 700, marginTop: 4, color: "var(--text)" }}>Discussion</h2>
+                </div>
+                <div className="comments-section">
+                  <div className="comment-input-wrapper">
                     <textarea
-                      className="input"
-                      placeholder="Add a comment..."
+                      className="comment-textarea"
+                      placeholder="Add a comment or note about this request..."
                       value={commentInput}
                       onChange={(e) => setCommentInput(e.target.value)}
-                      rows={3}
                       disabled={postingComment}
                     />
                     <button
                       className="btn btn-primary"
                       onClick={() => void handlePostComment()}
                       disabled={postingComment || !commentInput.trim()}
-                      style={{ marginTop: 8 }}
+                      style={{ marginTop: 12 }}
                     >
                       {postingComment ? "Posting..." : "Post Comment"}
                     </button>
                   </div>
 
-                  {comments.length ? (
-                    <div style={{ borderTop: "1px solid #e5e7eb", paddingTop: 12 }}>
-                      {comments.map((comment) => (
-                        <div key={comment.id} style={{ marginBottom: 12, paddingBottom: 12, borderBottom: "1px solid #f3f4f6" }}>
-                          <div style={{ fontSize: 14, fontWeight: 500 }}>
-                            {comment.author_first_name} ({comment.author_role})
-                          </div>
-                          <div style={{ fontSize: 12, color: "#6b7280", marginBottom: 4 }}>
-                            {new Date(comment.created_at).toLocaleString()}
-                          </div>
-                          <div style={{ marginBottom: 8 }}>{comment.message}</div>
-                          {comment.author === userId && (
-                            <button
-                              className="btn btn-subtle"
-                              style={{ fontSize: 12 }}
-                              onClick={() => void handleDeleteComment(comment.id)}
-                            >
-                              Delete
-                            </button>
-                          )}
+                  {comments.length > 0 && (
+                    <>
+                      <div style={{ borderTop: "1px solid var(--border)", paddingTop: 16 }}>
+                        <div style={{ fontSize: 12, textTransform: "uppercase", letterSpacing: "0.1em", color: "var(--text-muted)", fontWeight: 600, marginBottom: 12, fontFamily: "var(--font-head)" }}>Comments ({comments.length})</div>
+                        <div className="comments-list">
+                          {comments.map((comment) => (
+                            <div key={comment.id} className="comment-item">
+                              <div className="comment-header">
+                                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                                  <span className="comment-author">{comment.author_first_name}</span>
+                                  <span className="comment-role">{comment.author_role}</span>
+                                </div>
+                                <span className="comment-time">{new Date(comment.created_at).toLocaleString()}</span>
+                              </div>
+                              <div className="comment-text">{comment.message}</div>
+                              {comment.author === userId && (
+                                <button
+                                  className="comment-delete-btn"
+                                  onClick={() => void handleDeleteComment(comment.id)}
+                                >
+                                  Delete
+                                </button>
+                              )}
+                            </div>
+                          ))}
                         </div>
-                      ))}
+                      </div>
+                    </>
+                  )}
+
+                  {comments.length === 0 && commentInput.trim() === "" && (
+                    <div style={{ textAlign: "center", padding: "20px", color: "var(--text-muted)", fontSize: 13 }}>
+                      No comments yet. Be the first to comment!
                     </div>
-                  ) : (
-                    <div className="notice">No comments yet. Be the first to comment!</div>
                   )}
                 </div>
               </div>

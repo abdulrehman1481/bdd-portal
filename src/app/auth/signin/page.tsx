@@ -9,8 +9,8 @@ import { setStoredRefreshToken, setStoredRole, setStoredToken } from "@/lib/sess
 
 export default function SignInPage() {
   const router = useRouter();
-  const [email, setEmail] = useState("hospital1@example.com");
-  const [password, setPassword] = useState("StrongPass123!");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState("");
 

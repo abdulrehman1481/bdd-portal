@@ -17,6 +17,8 @@ import {
   getRequests,
   HospitalProfile,
   HospitalSummary,
+  MedicalCenter,
+  getMedicalCenters,
   pingDonor,
   RadarDonor,
   RequestPingStatus,
@@ -29,6 +31,7 @@ import {
 import { RequireRole } from "@/components/AuthGuards";
 import ConfirmModal from "@/components/ConfirmModal";
 import ToastStack from "@/components/ToastStack";
+import ThemeToggle from "@/components/ThemeToggle";
 import { clearSession, getStoredToken } from "@/lib/session";
 import { useToastQueue } from "@/lib/useToastQueue";
 
@@ -115,6 +118,9 @@ export default function HospitalDashboardPage() {
   const [pingingDonorId, setPingingDonorId] = useState<number | null>(null);
   const [expandedActivityId, setExpandedActivityId] = useState<number | null>(null);
   const [loading, setLoading] = useState(false);
+  const [medicalCenters, setMedicalCenters] = useState<MedicalCenter[]>([]);
+  const [detectedCity, setDetectedCity] = useState("");
+  const [selectedCenterId, setSelectedCenterId] = useState("");
   const { toasts, pushToast, dismissToast } = useToastQueue();
 
   const myRequests = useMemo(() => requests.filter((item) => item.requester === userId), [requests, userId]);
@@ -253,48 +259,64 @@ export default function HospitalDashboardPage() {
     setMessage("");
 
     try {
-      const [summaryData, requestData, profile] = await Promise.all([
+      const [summaryData, requestData, profile, medicalCentersResult] = await Promise.allSettled([
         getHospitalSummary(activeToken),
         getRequests(activeToken, { includeHistory: true }),
         getHospitalProfile(activeToken),
+        getMedicalCenters(activeToken),
       ]);
 
       const me = await getMe(activeToken);
       setUserId(me.id);
       setDisplayName(me.first_name || me.email.split("@")[0]);
 
-      setSummary(summaryData);
-      setRequests(requestData);
-      setProfile(profile);
+      if (summaryData.status === "fulfilled") {
+        setSummary(summaryData.value);
+      }
+      if (requestData.status === "fulfilled") {
+        setRequests(requestData.value);
+      }
+      if (profile.status === "fulfilled") {
+        const profileData = profile.value;
+        setProfile(profileData);
 
-      setProfileForm({
-        facility_name: profile.facility_name || "",
-        license_number: profile.license_number || "",
-        nodal_officer_name: profile.nodal_officer_name || "",
-        emergency_phone: profile.emergency_phone || "",
-        lat: String(profile.location?.lat ?? ""),
-        lng: String(profile.location?.lng ?? ""),
-      });
+        setProfileForm({
+          facility_name: profileData.facility_name || "",
+          license_number: profileData.license_number || "",
+          nodal_officer_name: profileData.nodal_officer_name || "",
+          emergency_phone: profileData.emergency_phone || "",
+          lat: String(profileData.location?.lat ?? ""),
+          lng: String(profileData.location?.lng ?? ""),
+        });
 
-      setRequestForm((prev) => ({
-        ...prev,
-        hospital_name: profile.facility_name || prev.hospital_name,
-        lat: String(profile.location?.lat ?? prev.lat),
-        lng: String(profile.location?.lng ?? prev.lng),
-      }));
+        setRequestForm((prev) => ({
+          ...prev,
+          hospital_name: profileData.facility_name || prev.hospital_name,
+          lat: String(profileData.location?.lat ?? prev.lat),
+          lng: String(profileData.location?.lng ?? prev.lng),
+        }));
 
-      if (!profile.is_verified_by_admin) {
-        setMessage("Hospital account is not yet admin-verified. You can still test dashboard and requests for now.");
+        if (!profileData.is_verified_by_admin) {
+          setMessage("Hospital account is not yet admin-verified. You can still test dashboard and requests for now.");
+        }
+
+        const radar = await getRadarDonors(
+          activeToken,
+          bloodGroup,
+          radiusKm,
+          profileData.location?.lat,
+          profileData.location?.lng
+        );
+        setDonors(radar);
       }
 
-      const radar = await getRadarDonors(
-        activeToken,
-        bloodGroup,
-        radiusKm,
-        profile.location?.lat,
-        profile.location?.lng
-      );
-      setDonors(radar);
+      if (medicalCentersResult.status === "fulfilled") {
+        setMedicalCenters(medicalCentersResult.value.items);
+        setDetectedCity(medicalCentersResult.value.city || "");
+      } else {
+        setMedicalCenters([]);
+        setDetectedCity("");
+      }
     } catch (error) {
       pushToast("error", error instanceof Error ? error.message : "Failed to load dashboard.");
     } finally {
@@ -601,6 +623,13 @@ export default function HospitalDashboardPage() {
     return "normal";
   }
 
+  function requestStatusClass(status: BloodRequest["status"]): "open" | "progress" | "completed" | "closed" {
+    if (status === "ACTIVE") return "open";
+    if (status === "PARTIAL") return "progress";
+    if (status === "FULFILLED") return "completed";
+    return "closed";
+  }
+
   function isActionableStatus(status: BloodRequest["status"]): boolean {
     return status === "ACTIVE" || status === "PARTIAL";
   }
@@ -613,7 +642,7 @@ export default function HospitalDashboardPage() {
     return (
       <div className="request-action-grid">
         <button
-          className="btn btn-primary btn-action"
+          className="btn btn-success btn-action"
           onClick={() => {
             pushToast("info", "Opening confirmation for fulfilled status...");
             void handleOwnerStatusUpdate(item.id, "FULFILLED");
@@ -622,7 +651,7 @@ export default function HospitalDashboardPage() {
           Mark as Fulfilled
         </button>
         <button
-          className="btn btn-action"
+          className="btn btn-danger-soft btn-action"
           onClick={() => {
             pushToast("info", "Opening confirmation to close request...");
             void handleOwnerStatusUpdate(item.id, "CLOSED");
@@ -682,9 +711,9 @@ export default function HospitalDashboardPage() {
         <section className="container hero">
           <div className="dashboard-topbar section">
             <div className="topbar-logo">BloodLink</div>
-            <div className="topbar-search-wrap"><input className="topbar-search-input" placeholder="Search patients, requests..." /></div>
+            <div style={{ flex: 1 }}></div>
             <div className="topbar-right">
-              <button className="btn">Alerts</button>
+              <ThemeToggle />
               <button className="btn" onClick={logout}>Logout</button>
             </div>
           </div>
@@ -709,7 +738,7 @@ export default function HospitalDashboardPage() {
             <div className="card"><div className="label">Eligible Matches</div><div className="value">{eligibleDonors.length}</div></div>
           </div>
 
-          <div className="dashboard-shell section">
+          <div className="dashboard-shell section dashboard-spacious">
             <aside className="dashboard-sidebar">
               <div className="sidebar-title">Hospital Sections</div>
               <button className={`tab-btn sidebar-tab ${activeTab === "overview" ? "active" : ""}`} onClick={() => changeTab("overview")}>Overview</button>
@@ -813,11 +842,37 @@ export default function HospitalDashboardPage() {
                     <option value="CRITICAL">CRITICAL</option>
                   </select>
                   <input className="input" type="datetime-local" title="Deadline for this blood request" value={requestForm.required_by_datetime} onChange={(e) => setRequestForm((p) => ({ ...p, required_by_datetime: e.target.value }))} required />
+                  <select
+                    className="select"
+                    value={selectedCenterId}
+                    onChange={(e) => {
+                      const centerId = e.target.value;
+                      setSelectedCenterId(centerId);
+                      if (!centerId) return;
+                      const center = medicalCenters.find((item) => String(item.id) === centerId);
+                      if (!center) return;
+                      setRequestForm((prev) => ({
+                        ...prev,
+                        hospital_name: center.name,
+                        lat: String(center.location.lat),
+                        lng: String(center.location.lng),
+                      }));
+                      pushToast("info", `Selected ${center.name} (${center.city}).`);
+                    }}
+                  >
+                    <option value="">Select medical center (optional)</option>
+                    {medicalCenters.map((center) => (
+                      <option key={center.id} value={center.id}>
+                        {center.name} - {center.city} ({center.center_type})
+                      </option>
+                    ))}
+                  </select>
                   <input className="input" placeholder="Hospital/facility name shown to users" title="Displayed to users viewing the request" value={requestForm.hospital_name} onChange={(e) => setRequestForm((p) => ({ ...p, hospital_name: e.target.value }))} required />
                   <input className="input" placeholder="Latitude (auto-filled from location)" title="Geo latitude for map matching" value={requestForm.lat} onChange={(e) => setRequestForm((p) => ({ ...p, lat: e.target.value }))} required />
                   <input className="input" placeholder="Longitude (auto-filled from location)" title="Geo longitude for map matching" value={requestForm.lng} onChange={(e) => setRequestForm((p) => ({ ...p, lng: e.target.value }))} required />
                   <button className="btn btn-primary" type="submit" disabled={loading}>{loading ? "Working..." : "Create Request"}</button>
                 </form>
+                {detectedCity ? <div className="notice section">Showing medical centers for your city: {detectedCity}</div> : null}
                 <div className="section">
                   <div className="notice">Pick request location from map (click anywhere to set lat/lon).</div>
                   <LiveMap
@@ -864,7 +919,10 @@ export default function HospitalDashboardPage() {
                         <div className="req-name">{item.patient_name}</div>
                         <span className={`req-urg-tag ${urgencyClass(item.urgency)}`}>{item.urgency}</span>
                       </div>
-                      <div className="req-meta-line">{item.hospital_name} • {item.status}</div>
+                      <div className="req-meta-line">
+                        {item.hospital_name} •
+                        <span className={`status-pill ${requestStatusClass(item.status)}`}>{item.status}</span>
+                      </div>
                       {item.description ? <div className="req-meta-line">{item.description}</div> : null}
                       <div className="req-meta-line">Units: {item.units_fulfilled}/{item.units_required}</div>
                       <div className="section">

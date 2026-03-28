@@ -1,7 +1,6 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import {
   getHospitalSentPings,
@@ -11,13 +10,13 @@ import {
 import { RequireRole } from "@/components/AuthGuards";
 import ConfirmModal from "@/components/ConfirmModal";
 import ToastStack from "@/components/ToastStack";
+import ThemeToggle from "@/components/ThemeToggle";
 import { getStoredToken } from "@/lib/session";
 import { useToastQueue } from "@/lib/useToastQueue";
 
 type FilterType = "ALL" | "PENDING" | "ACCEPTED" | "DECLINED";
 
 export default function HospitalPingsPage() {
-  const router = useRouter();
   const [token, setToken] = useState("");
   const [pings, setPings] = useState<HospitalPingSent[]>([]);
   const [loading, setLoading] = useState(false);
@@ -27,6 +26,9 @@ export default function HospitalPingsPage() {
   const { toasts, pushToast, dismissToast } = useToastQueue();
 
   const filteredPings = pings.filter((p) => (filter === "ALL" ? true : p.response_status === filter));
+  const pendingCount = pings.filter((p) => p.response_status === "PENDING").length;
+  const acceptedCount = pings.filter((p) => p.response_status === "ACCEPTED").length;
+  const declinedCount = pings.filter((p) => p.response_status === "DECLINED").length;
 
   useEffect(() => {
     const activeToken = getStoredToken();
@@ -67,6 +69,15 @@ export default function HospitalPingsPage() {
       <ToastStack toasts={toasts} onDismiss={dismissToast} />
       <main className="page">
         <section className="container hero">
+          <div className="dashboard-topbar section">
+            <div className="topbar-logo">BloodLink</div>
+            <div style={{ flex: 1 }}></div>
+            <div className="topbar-right">
+              <ThemeToggle />
+              <Link href="/dashboard/hospital?tab=requests" className="btn">Back to Requests</Link>
+            </div>
+          </div>
+
           <div className="dash-top">
             <div>
               <div className="brand">Hospital Ping Management</div>
@@ -77,11 +88,17 @@ export default function HospitalPingsPage() {
             </div>
             <div className="actions">
               <button className="btn btn-primary" onClick={() => void loadPings(token)} disabled={loading}>Refresh</button>
-              <Link href="/dashboard/hospital?tab=requests" className="btn">Back to Requests</Link>
             </div>
           </div>
 
-          <div className="panel section">
+          <div className="grid kpis section">
+            <div className="card"><div className="label">Total Pings</div><div className="value">{pings.length}</div></div>
+            <div className="card"><div className="label">Pending</div><div className="value amber">{pendingCount}</div></div>
+            <div className="card"><div className="label">Accepted</div><div className="value green">{acceptedCount}</div></div>
+            <div className="card"><div className="label">Declined</div><div className="value red">{declinedCount}</div></div>
+          </div>
+
+          <div className="panel section dashboard-spacious">
             <div className="panel-head"><div className="panel-title">All Pings</div></div>
             <div style={{ padding: "10px 12px 0" }} className="notice">
               Manage all pings sent to donors. Click a ping to see details, or delete pending pings before recipients respond.
@@ -91,13 +108,13 @@ export default function HospitalPingsPage() {
                 All ({pings.length})
               </button>
               <button className={`chip ${filter === "PENDING" ? "active" : ""}`} onClick={() => setFilter("PENDING")}>
-                Pending ({pings.filter((p) => p.response_status === "PENDING").length})
+                Pending ({pendingCount})
               </button>
               <button className={`chip ${filter === "ACCEPTED" ? "active" : ""}`} onClick={() => setFilter("ACCEPTED")}>
-                Accepted ({pings.filter((p) => p.response_status === "ACCEPTED").length})
+                Accepted ({acceptedCount})
               </button>
               <button className={`chip ${filter === "DECLINED" ? "active" : ""}`} onClick={() => setFilter("DECLINED")}>
-                Declined ({pings.filter((p) => p.response_status === "DECLINED").length})
+                Declined ({declinedCount})
               </button>
             </div>
 
@@ -140,7 +157,7 @@ export default function HospitalPingsPage() {
                         </div>
                       )}
                       <div className="section">
-                        <div className={`badge ${ping.response_status === "PENDING" ? "" : ping.response_status === "ACCEPTED" ? "accepted" : "declined"}`}>
+                        <div className={`badge ${ping.response_status === "PENDING" ? "pending" : ping.response_status === "ACCEPTED" ? "accepted" : "declined"}`}>
                           Status: {ping.response_status}
                         </div>
                         <div className="actions compact-actions">

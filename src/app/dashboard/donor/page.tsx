@@ -28,6 +28,7 @@ import {
 import { RequireRole } from "@/components/AuthGuards";
 import ConfirmModal from "@/components/ConfirmModal";
 import ToastStack from "@/components/ToastStack";
+import ThemeToggle from "@/components/ThemeToggle";
 import { clearSession, getStoredToken } from "@/lib/session";
 import { useToastQueue } from "@/lib/useToastQueue";
 
@@ -142,6 +143,7 @@ export default function DonorDashboardPage() {
   const [medicalCenters, setMedicalCenters] = useState<MedicalCenter[]>([]);
   const [detectedCity, setDetectedCity] = useState("");
   const [selectedCenterId, setSelectedCenterId] = useState("");
+  const [isProfileEditing, setIsProfileEditing] = useState(false);
   const { toasts, pushToast, dismissToast } = useToastQueue();
 
   const myRequests = useMemo(() => requests.filter((item) => item.requester === userId), [requests, userId]);
@@ -436,8 +438,10 @@ export default function DonorDashboardPage() {
     pushToast("info", `Profile location dragged to ${nextLat}, ${nextLng}.`);
   }
 
-  async function handleUpdateProfile(event: FormEvent) {
-    event.preventDefault();
+  async function handleUpdateProfile(event?: FormEvent) {
+    if (event) {
+      event.preventDefault();
+    }
     if (!token) return;
 
     const weight = Number(form.weight_kg);
@@ -714,6 +718,13 @@ export default function DonorDashboardPage() {
     return "normal";
   }
 
+  function requestStatusClass(status: BloodRequest["status"]): "open" | "progress" | "completed" | "closed" {
+    if (status === "ACTIVE") return "open";
+    if (status === "PARTIAL") return "progress";
+    if (status === "FULFILLED") return "completed";
+    return "closed";
+  }
+
   function isActionableStatus(status: BloodRequest["status"]): boolean {
     return status === "ACTIVE" || status === "PARTIAL";
   }
@@ -726,7 +737,7 @@ export default function DonorDashboardPage() {
     return (
       <div className="request-action-grid">
         <button
-          className="btn btn-primary btn-action"
+          className="btn btn-success btn-action"
           onClick={() => {
             pushToast("info", "Opening confirmation for fulfilled status...");
             void handleOwnerStatusUpdate(item.id, "FULFILLED");
@@ -735,7 +746,7 @@ export default function DonorDashboardPage() {
           Mark as Fulfilled
         </button>
         <button
-          className="btn btn-action"
+          className="btn btn-danger-soft btn-action"
           onClick={() => {
             pushToast("info", "Opening confirmation to close request...");
             void handleOwnerStatusUpdate(item.id, "CLOSED");
@@ -800,10 +811,10 @@ export default function DonorDashboardPage() {
         <section className="container hero">
           <div className="dashboard-topbar section">
             <div className="topbar-logo">BloodLink</div>
-            <div className="topbar-search-wrap"><input className="topbar-search-input" placeholder="Search requests, hospitals..." /></div>
+            <div style={{ flex: 1 }}></div>
             <div className="topbar-right">
+              <ThemeToggle />
               <Link href="/dashboard/donor/inbox" className="btn btn-primary">Inbox</Link>
-              <button className="btn">Alerts</button>
               <button className="btn" onClick={logout}>Logout</button>
             </div>
           </div>
@@ -828,7 +839,7 @@ export default function DonorDashboardPage() {
             <div className="card"><div className="label">Lives Impacted</div><div className="value">{summary?.lives_impacted ?? 0}</div></div>
           </div>
 
-          <div className="dashboard-shell section">
+          <div className="dashboard-shell section dashboard-spacious">
             <aside className="dashboard-sidebar">
               <div className="sidebar-title">Donor Sections</div>
               <button className={`tab-btn sidebar-tab ${activeTab === "overview" ? "active" : ""}`} onClick={() => changeTab("overview")}>Overview</button>
@@ -870,62 +881,161 @@ export default function DonorDashboardPage() {
               )}
 
               {activeTab === "profile" && (
-            <div className="panel section">
-              <div className="panel-head"><div className="panel-title">Profile and Settings</div></div>
-              <div style={{ padding: 14 }}>
-                <form className="form-grid" onSubmit={handleUpdateProfile}>
-                  <select className="select" value={form.blood_group} onChange={(e) => setForm((p) => ({ ...p, blood_group: e.target.value }))}>
-                    {["A+","A-","B+","B-","O+","O-","AB+","AB-"].map((g) => <option key={g} value={g}>{g}</option>)}
-                  </select>
-                  <input className="input" type="date" max={maxBirthDate} value={form.date_of_birth} onChange={(e) => setForm((p) => ({ ...p, date_of_birth: e.target.value }))} />
-                  <input className="input" type="number" min={30} max={300} step={1} value={form.weight_kg} onChange={(e) => setForm((p) => ({ ...p, weight_kg: e.target.value }))} placeholder="Weight (kg)" />
-                  <select className="select" value={form.gender} onChange={(e) => setForm((p) => ({ ...p, gender: e.target.value as DonorForm["gender"] }))}>
-                    <option value="M">Male</option>
-                    <option value="F">Female</option>
-                    <option value="O">Other</option>
-                  </select>
-                  <input className="input" value={form.lat} onChange={(e) => setForm((p) => ({ ...p, lat: e.target.value }))} placeholder="Latitude" />
-                  <input className="input" value={form.lng} onChange={(e) => setForm((p) => ({ ...p, lng: e.target.value }))} placeholder="Longitude" />
-                  <label className="toggle-row">
-                    <input type="checkbox" checked={form.is_available} onChange={(e) => setForm((p) => ({ ...p, is_available: e.target.checked }))} />
-                    Available to donate
-                  </label>
-                  <div className="actions compact-actions">
-                    <button className="btn" type="button" onClick={() => void detectLocation(true)} disabled={profileSaving}>Auto Detect and Save Location</button>
-                    <button className="btn btn-primary" type="submit" disabled={profileSaving}>{profileSaving ? "Saving..." : "Save Profile"}</button>
+                <div className="dashboard-content">
+                  {/* EDIT BUTTON HEADER */}
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
+                    <h2 style={{ margin: 0, fontSize: 20, fontWeight: 600 }}>Profile Information</h2>
+                    <button 
+                      className={`btn ${isProfileEditing ? "btn-danger-soft" : "btn-primary"}`}
+                      onClick={() => {
+                        if (isProfileEditing) {
+                          setIsProfileEditing(false);
+                        } else {
+                          setIsProfileEditing(true);
+                        }
+                      }}
+                    >
+                      {isProfileEditing ? "✕ Cancel Editing" : "✏️ Edit Profile"}
+                    </button>
                   </div>
-                </form>
-                <div className="section">
-                  <LiveMap
-                    center={mapCenter}
-                    points={[
-                      {
-                        id: "donor-profile-location",
-                        label: `You (${form.blood_group})`,
-                        lat: mapCenter.lat,
-                        lng: mapCenter.lng,
-                        color: "#0f766e",
-                      },
-                    ]}
-                    height={320}
-                    selectedPointId="donor-profile-location"
-                    buffers={[
-                      {
-                        id: "donor-profile-buffer",
-                        lat: mapCenter.lat,
-                        lng: mapCenter.lng,
-                        radiusMeters: mapRadiusMeters,
-                        color: "#0f766e",
-                        fillOpacity: 0.1,
-                        label: `Coverage buffer: ${radiusKm} km`,
-                      },
-                    ]}
-                    draggableCenter
-                    onCenterDrag={handleProfileMapDrag}
-                  />
+
+                  {/* PERSONAL INFORMATION SECTION */}
+                  <div className="profile-section section">
+                    <div className="profile-section-title">👤 Personal Information</div>
+                    <form className="form-row form-row-half">
+                      <div className="form-group form-group-last">
+                        <label className="form-label">Blood Group</label>
+                        <select className="select" value={form.blood_group} onChange={(e) => setForm((p) => ({ ...p, blood_group: e.target.value }))} disabled={!isProfileEditing}>
+                          {["A+","A-","B+","B-","O+","O-","AB+","AB-"].map((g) => <option key={g} value={g}>{g}</option>)}
+                        </select>
+                      </div>
+                      <div className="form-group form-group-last">
+                        <label className="form-label">Date of Birth</label>
+                        <input className="input" type="date" max={maxBirthDate} value={form.date_of_birth} onChange={(e) => setForm((p) => ({ ...p, date_of_birth: e.target.value }))} disabled={!isProfileEditing} />
+                      </div>
+                      <div className="form-group form-group-last">
+                        <label className="form-label">Weight (kg)</label>
+                        <input className="input" type="number" min={30} max={300} step={1} value={form.weight_kg} onChange={(e) => setForm((p) => ({ ...p, weight_kg: e.target.value }))} placeholder="60" disabled={!isProfileEditing} />
+                      </div>
+                      <div className="form-group form-group-last">
+                        <label className="form-label">Gender</label>
+                        <select className="select" value={form.gender} onChange={(e) => setForm((p) => ({ ...p, gender: e.target.value as DonorForm["gender"] }))} disabled={!isProfileEditing}>
+                          <option value="M">Male</option>
+                          <option value="F">Female</option>
+                          <option value="O">Other</option>
+                        </select>
+                      </div>
+                    </form>
+
+                    <div className="form-group" style={{ marginTop: 18 }}>
+                      <label className="toggle-row" style={{ cursor: isProfileEditing ? "pointer" : "default", opacity: isProfileEditing ? 1 : 0.6 }}>
+                        <input type="checkbox" checked={form.is_available} onChange={(e) => setForm((p) => ({ ...p, is_available: e.target.checked }))} disabled={!isProfileEditing} />
+                        <span>✓ {form.is_available ? "Available to donate" : "Click to mark as available"}</span>
+                      </label>
+                    </div>
+                  </div>
+
+                  {/* LOCATION INFORMATION SECTION */}
+                  <div className="profile-section section">
+                    <div className="profile-section-title">📍 Location Information</div>
+                    
+                    <div className="location-picker">
+                      <div className="location-buttons">
+                        <button className="btn" type="button" onClick={() => void detectLocation(true)} disabled={!isProfileEditing || profileSaving}>
+                          📍 Auto Detect Current Location
+                        </button>
+                      </div>
+
+                      <div style={{ fontSize: 12, color: "var(--text-muted)" }}>
+                        Current Coordinates: <strong>{form.lat || "0"}, {form.lng || "0"}</strong>
+                      </div>
+
+                      <div className="form-label" style={{ marginTop: 12, opacity: isProfileEditing ? 1 : 0.6 }}>Enter Location Manually</div>
+                      <div className="location-manual-input">
+                        <div className="form-group form-group-last">
+                          <label className="form-label">Latitude</label>
+                          <input className="input" value={form.lat} onChange={(e) => setForm((p) => ({ ...p, lat: e.target.value }))} placeholder="32.085343" disabled={!isProfileEditing} />
+                        </div>
+                        <div className="form-group form-group-last">
+                          <label className="form-label">Longitude</label>
+                          <input className="input" value={form.lng} onChange={(e) => setForm((p) => ({ ...p, lng: e.target.value }))} placeholder="72.686143" disabled={!isProfileEditing} />
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="map-container">
+                      <LiveMap
+                        center={mapCenter}
+                        points={[
+                          {
+                            id: "donor-profile-location",
+                            label: `You (${form.blood_group})`,
+                            lat: mapCenter.lat,
+                            lng: mapCenter.lng,
+                            color: "#0f766e",
+                          },
+                        ]}
+                        height={300}
+                        selectedPointId="donor-profile-location"
+                        buffers={[
+                          {
+                            id: "donor-profile-buffer",
+                            lat: mapCenter.lat,
+                            lng: mapCenter.lng,
+                            radiusMeters: mapRadiusMeters,
+                            color: "#0f766e",
+                            fillOpacity: 0.1,
+                            label: `Coverage buffer: ${radiusKm} km`,
+                          },
+                        ]}
+                        draggableCenter
+                        onCenterDrag={handleProfileMapDrag}
+                      />
+                    </div>
+                  </div>
+
+                  {/* PASSWORD CHANGE SECTION */}
+                  {isProfileEditing && (
+                    <div className="password-change-section section">
+                      <div className="profile-section-title">🔐 Change Password</div>
+                      <form className="form-row" onSubmit={(e) => { e.preventDefault(); }}>
+                        <div className="form-group form-group-last">
+                          <label className="form-label">Current Password</label>
+                          <input className="input" type="password" placeholder="Enter your current password" disabled={!isProfileEditing} />
+                        </div>
+                        <div className="form-group form-group-last">
+                          <label className="form-label">New Password</label>
+                          <input className="input" type="password" placeholder="Enter new password" disabled={!isProfileEditing} />
+                        </div>
+                        <div className="form-group form-group-last">
+                          <label className="form-label">Confirm New Password</label>
+                          <input className="input" type="password" placeholder="Confirm new password" disabled={!isProfileEditing} />
+                        </div>
+                        <button className="btn btn-danger-soft" type="submit" style={{ width: "fit-content" }} disabled={!isProfileEditing}>Update Password</button>
+                      </form>
+                    </div>
+                  )}
+
+                  {/* SAVE PROFILE SECTION */}
+                  {isProfileEditing && (
+                    <div style={{ display: "flex", gap: 10, justifyContent: "flex-end", marginTop: 20 }}>
+                      <button 
+                        className="btn btn-danger-soft"
+                        onClick={() => setIsProfileEditing(false)}
+                        disabled={profileSaving}
+                      >
+                        Cancel
+                      </button>
+                      <button 
+                        className="btn btn-primary" 
+                        onClick={() => void handleUpdateProfile()}
+                        disabled={profileSaving}
+                      >
+                        {profileSaving ? "💾 Saving..." : "💾 Save Changes"}
+                      </button>
+                    </div>
+                  )}
                 </div>
-              </div>
-            </div>
               )}
 
               {activeTab === "create" && (
@@ -1027,7 +1137,10 @@ export default function DonorDashboardPage() {
                         <div className="req-name">{item.patient_name}</div>
                         <span className={`req-urg-tag ${urgencyClass(item.urgency)}`}>{item.urgency}</span>
                       </div>
-                      <div className="req-meta-line">{item.hospital_name} • {new Date(item.required_by_datetime).toLocaleString()} • {item.status}</div>
+                      <div className="req-meta-line">
+                        {item.hospital_name} • {new Date(item.required_by_datetime).toLocaleString()} •
+                        <span className={`status-pill ${requestStatusClass(item.status)}`}>{item.status}</span>
+                      </div>
                       {item.description ? <div className="req-meta-line">{item.description}</div> : null}
                       <div className="req-meta-line">Units: {item.units_fulfilled}/{item.units_required}</div>
                       <div className="section">
@@ -1141,7 +1254,12 @@ export default function DonorDashboardPage() {
                           <div className="notice"><strong>Blood:</strong> {selectedMapRequest.blood_group_needed}</div>
                           {selectedMapRequest.description ? <div className="notice"><strong>Description:</strong> {selectedMapRequest.description}</div> : null}
                           <div className="notice"><strong>Units:</strong> {selectedMapRequest.units_fulfilled}/{selectedMapRequest.units_required}</div>
-                          <div className="notice"><strong>Status:</strong> {selectedMapRequest.status}</div>
+                          <div className="notice">
+                            <strong>Status:</strong>
+                            <span className={`status-pill ${requestStatusClass(selectedMapRequest.status)}`}>
+                              {selectedMapRequest.status}
+                            </span>
+                          </div>
                           <div className="notice"><strong>Required By:</strong> {new Date(selectedMapRequest.required_by_datetime).toLocaleString()}</div>
                           <div className="actions compact-actions"><Link href={`/dashboard/requests/${selectedMapRequest.id}`} className="btn btn-primary">View Full Activity</Link></div>
                         </div>
