@@ -2,8 +2,8 @@
 
 import { ReactNode, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { UserRole } from "@/lib/api";
-import { getStoredRole, getStoredToken } from "@/lib/session";
+import { getMe, UserMe, UserRole } from "@/lib/api";
+import { clearSession, getStoredToken, setStoredRole } from "@/lib/session";
 
 type RequireRoleProps = {
   roles: UserRole[];
@@ -20,21 +20,51 @@ export function RequireRole({ roles, children }: RequireRoleProps) {
   const [allowed, setAllowed] = useState(false);
 
   useEffect(() => {
-    const token = getStoredToken();
-    const role = getStoredRole() as UserRole;
+    let cancelled = false;
 
-    if (!token) {
-      router.replace("/auth/signin");
-      return;
+    async function verifySession() {
+      const token = getStoredToken();
+      if (!token) {
+        if (!cancelled) {
+          setReady(true);
+          setAllowed(false);
+        }
+        router.replace("/auth/signin");
+        return;
+      }
+
+      try {
+        const me: UserMe = await getMe(token);
+        setStoredRole(me.role);
+
+        if (!roles.includes(me.role)) {
+          if (!cancelled) {
+            setReady(true);
+            setAllowed(false);
+          }
+          router.replace(me.role === "HOSPITAL" ? "/dashboard/hospital" : "/dashboard/donor");
+          return;
+        }
+
+        if (!cancelled) {
+          setAllowed(true);
+          setReady(true);
+        }
+      } catch {
+        clearSession();
+        if (!cancelled) {
+          setReady(true);
+          setAllowed(false);
+        }
+        router.replace("/auth/signin");
+      }
     }
 
-    if (!roles.includes(role)) {
-      router.replace(role === "HOSPITAL" ? "/dashboard/hospital" : "/dashboard/donor");
-      return;
-    }
+    void verifySession();
 
-    setAllowed(true);
-    setReady(true);
+    return () => {
+      cancelled = true;
+    };
   }, [roles, router]);
 
   if (!ready) {
@@ -53,15 +83,30 @@ export function PublicOnly({ children }: PublicOnlyProps) {
   const [ready, setReady] = useState(false);
 
   useEffect(() => {
-    const token = getStoredToken();
-    const role = getStoredRole() as UserRole;
+    let cancelled = false;
 
-    if (token) {
-      router.replace(role === "HOSPITAL" ? "/dashboard/hospital" : "/dashboard/donor");
-      return;
+    async function verifyPublicRoute() {
+      const token = getStoredToken();
+      if (!token) {
+        if (!cancelled) setReady(true);
+        return;
+      }
+
+      try {
+        const me: UserMe = await getMe(token);
+        setStoredRole(me.role);
+        router.replace(me.role === "HOSPITAL" ? "/dashboard/hospital" : "/dashboard/donor");
+      } catch {
+        clearSession();
+        if (!cancelled) setReady(true);
+      }
     }
 
-    setReady(true);
+    void verifyPublicRoute();
+
+    return () => {
+      cancelled = true;
+    };
   }, [router]);
 
   if (!ready) {

@@ -14,10 +14,12 @@ import {
   getDonorEligibility,
   getDonorFeed,
   getMedicalCenters,
+  getPublicMedicalCenters,
   getMe,
   getDonorProfile,
   getDonorSummary,
   MedicalCenter,
+  reverseGeocodeCity,
   getRequestActions,
   getRequests,
   RequestAction,
@@ -47,12 +49,53 @@ function parseCoordinatePair(latRaw: string, lngRaw: string): { lat: number; lng
   if (lat < -90 || lat > 90 || lng < -180 || lng > 180) {
     return null;
   }
+  // Reject (0,0) as invalid location
+  if (lat === 0 && lng === 0) {
+    return null;
+  }
   return { lat, lng };
 }
 
 function toLocalDateTimeInputValue(date: Date): string {
   const next = new Date(date.getTime() - date.getTimezoneOffset() * 60_000);
   return next.toISOString().slice(0, 16);
+}
+
+function calculateAgeFromDateOfBirth(dateOfBirth: string): string {
+  if (!dateOfBirth) return "";
+  const dob = new Date(`${dateOfBirth}T00:00:00`);
+  if (Number.isNaN(dob.getTime())) return "";
+
+  const today = new Date();
+  let age = today.getFullYear() - dob.getFullYear();
+  const monthDiff = today.getMonth() - dob.getMonth();
+
+  if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < dob.getDate())) {
+    age -= 1;
+  }
+
+  return age >= 0 ? String(age) : "";
+}
+
+function deriveDateOfBirthFromAge(ageYears: number, existingDob: string): string {
+  const today = new Date();
+  const fallback = new Date(`${today.getFullYear() - ageYears}-01-01T00:00:00`);
+
+  if (!existingDob) {
+    return fallback.toISOString().slice(0, 10);
+  }
+
+  const currentDob = new Date(`${existingDob}T00:00:00`);
+  if (Number.isNaN(currentDob.getTime())) {
+    return fallback.toISOString().slice(0, 10);
+  }
+
+  const month = currentDob.getMonth() + 1;
+  const day = currentDob.getDate();
+  const year = today.getFullYear() - ageYears;
+  const paddedMonth = String(month).padStart(2, "0");
+  const paddedDay = String(day).padStart(2, "0");
+  return `${year}-${paddedMonth}-${paddedDay}`;
 }
 
 type DonorTab = "overview" | "profile" | "create" | "requests" | "map";
@@ -144,6 +187,7 @@ export default function DonorDashboardPage() {
   const [detectedCity, setDetectedCity] = useState("");
   const [selectedCenterId, setSelectedCenterId] = useState("");
   const [isProfileEditing, setIsProfileEditing] = useState(false);
+  const [ageYears, setAgeYears] = useState("");
   const { toasts, pushToast, dismissToast } = useToastQueue();
 
   const myRequests = useMemo(() => requests.filter((item) => item.requester === userId), [requests, userId]);
@@ -155,6 +199,21 @@ export default function DonorDashboardPage() {
     if (!sameGroupOnly) return requests;
     return requests.filter((item) => item.blood_group_needed === form.blood_group || item.requester === userId);
   }, [requests, sameGroupOnly, form.blood_group, userId]);
+  const donorRequestStats = useMemo(() => {
+    const active = requests.filter((r) => r.status === "ACTIVE").length;
+    const partial = requests.filter((r) => r.status === "PARTIAL").length;
+    const fulfilled = requests.filter((r) => r.status === "FULFILLED").length;
+    const closed = requests.filter((r) => r.status === "CLOSED").length;
+    const denominator = Math.max(active + partial + fulfilled + closed, 1);
+    return {
+      active,
+      partial,
+      fulfilled,
+      closed,
+      denominator,
+      resolutionRate: Math.round(((fulfilled + closed) / denominator) * 100),
+    };
+  }, [requests]);
   const filteredRequestRows = useMemo(() => {
     if (requestFilter === "ALL") return requestRows;
     return requestRows.filter((item) => item.urgency === requestFilter);
@@ -175,15 +234,8 @@ export default function DonorDashboardPage() {
   }, [feed, mapSource, mapBloodGroup, mapUrgency, requests]);
 
   const mapPoints = useMemo(
-    () =>
-      filteredMapRequests.map((item) => ({
-        id: item.id,
-        label: `${item.patient_name} (${item.blood_group_needed})`,
-        lat: item.location.lat,
-        lng: item.location.lng,
-        color: item.urgency === "CRITICAL" ? "#e83b55" : item.urgency === "URGENT" ? "#f59e0b" : "#3b82f6",
-      })),
-    [filteredMapRequests]
+    () => [] as Array<{ id: string | number; label: string; lat: number; lng: number; color: string }>,
+    []
   );
 
   const selectedMapRequest = useMemo(
@@ -193,11 +245,8 @@ export default function DonorDashboardPage() {
 
   // Auto-pan map to selected request location when in map view
   const effectiveMapCenter = useMemo(() => {
-    if (activeTab === "map" && selectedMapRequest) {
-      return selectedMapRequest.location;
-    }
     return mapCenter;
-  }, [activeTab, selectedMapRequest, mapCenter]);
+  }, [mapCenter]);
   const mapRadiusMeters = useMemo(() => Math.max(radiusKm, 1) * 1000, [radiusKm]);
   const requestDraftCenter = useMemo(
     () => ({ lat: Number(requestForm.lat) || mapCenter.lat, lng: Number(requestForm.lng) || mapCenter.lng }),
@@ -209,6 +258,61 @@ export default function DonorDashboardPage() {
   );
   const maxBirthDate = useMemo(() => toLocalDateTimeInputValue(new Date()).slice(0, 10), []);
   const minRequiredByDateTime = useMemo(() => toLocalDateTimeInputValue(new Date()), []);
+
+  function normalizeCityName(city: string): string {
+    return city
+      .toLowerCase()
+      .replace(/[^a-z\s]/g, " ")
+      .replace(/\b(city|district|division|tehsil|capital|territory|pakistan)\b/g, " ")
+      .replace(/\s+/g, " ")
+      .trim();
+  }
+
+  function cityMatches(centerCity: string, detected: string): boolean {
+    const a = normalizeCityName(centerCity || "");
+    const b = normalizeCityName(detected || "");
+    if (!a || !b) return false;
+    return a === b || a.includes(b) || b.includes(a);
+  }
+
+  async function getBrowserLocationCoords(): Promise<{ lat: number; lng: number } | null> {
+    if (typeof window === "undefined" || !navigator.geolocation) {
+      return null;
+    }
+
+    try {
+      const coords = await new Promise<GeolocationCoordinates>((resolve, reject) => {
+        navigator.geolocation.getCurrentPosition(
+          (position) => resolve(position.coords),
+          () => reject(new Error("Location unavailable")),
+          {
+            enableHighAccuracy: true,
+            timeout: 10000,
+            maximumAge: 0,
+          }
+        );
+      });
+
+      const lat = Number(coords.latitude.toFixed(6));
+      const lng = Number(coords.longitude.toFixed(6));
+      if (!Number.isFinite(lat) || !Number.isFinite(lng) || (lat === 0 && lng === 0)) {
+        return null;
+      }
+
+      return { lat, lng };
+    } catch {
+      return null;
+    }
+  }
+
+  function geolocationBlockedHint(): string {
+    if (typeof window === "undefined") return "";
+    const isLocalhost = window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1";
+    if (!window.isSecureContext && !isLocalhost) {
+      return "Location access is blocked on non-HTTPS LAN URLs. Use https or localhost, or set coordinates manually.";
+    }
+    return "";
+  }
 
   useEffect(() => {
     const activeToken = getStoredToken();
@@ -254,6 +358,10 @@ export default function DonorDashboardPage() {
     });
   }, [form.lat, form.lng, selectedCenterId]);
 
+  useEffect(() => {
+    setAgeYears(calculateAgeFromDateOfBirth(form.date_of_birth));
+  }, [form.date_of_birth]);
+
   function changeTab(tab: DonorTab) {
     setActiveTab(tab);
     router.replace(`/dashboard/donor?tab=${tab}`);
@@ -264,29 +372,17 @@ export default function DonorDashboardPage() {
     if (Number(form.lat) !== 0 || Number(form.lng) !== 0) return;
 
     setAutoDetectAttempted(true);
-    void detectLocation();
+    void detectLocation(true);
   }, [autoDetectAttempted, form.lat, form.lng]);
 
   async function loadDonorDashboard(activeToken: string, radius: number) {
     setLoading(true);
     setMessage("");
     try {
-      const [
-        profileResult,
-        nearbyResult,
-        eligibilityResult,
-        requestsResult,
-        meResult,
-        summaryResult,
-        medicalCentersResult,
-      ] = await Promise.allSettled([
+      const [profileResult, requestsResult, meResult] = await Promise.allSettled([
         getDonorProfile(activeToken),
-        getDonorFeed(activeToken, radius),
-        getDonorEligibility(activeToken),
         getRequests(activeToken, { includeHistory: true }),
         getMe(activeToken),
-        getDonorSummary(activeToken, radius),
-        getMedicalCenters(activeToken),
       ]);
 
       if (profileResult.status !== "fulfilled") {
@@ -300,52 +396,129 @@ export default function DonorDashboardPage() {
       const profile = profileResult.value;
       const allRequests = requestsResult.value;
 
-      setForm({
+      let profileLat = Number(profile.location?.lat);
+      let profileLng = Number(profile.location?.lng);
+      const hasValidProfileLocation =
+        Number.isFinite(profileLat) && Number.isFinite(profileLng) && !(profileLat === 0 && profileLng === 0);
+
+      // Fallback: if profile location is invalid, try browser current location and persist it.
+      if (!hasValidProfileLocation) {
+        const browserLoc = await getBrowserLocationCoords();
+        if (browserLoc) {
+          profileLat = browserLoc.lat;
+          profileLng = browserLoc.lng;
+          await upsertDonorProfile(activeToken, {
+            blood_group: profile.blood_group,
+            date_of_birth: profile.date_of_birth || "1998-01-01",
+            weight_kg: Number(profile.weight_kg || 60),
+            gender: (profile.gender as "M" | "F" | "O") || "O",
+            is_available: profile.is_available,
+            location: { lat: profileLat, lng: profileLng },
+          } as Partial<DonorProfile>);
+          pushToast("success", "Current location detected and saved.");
+        }
+      }
+
+      const hasResolvedLocation =
+        Number.isFinite(profileLat) && Number.isFinite(profileLng) && !(profileLat === 0 && profileLng === 0);
+
+      setForm((prev) => ({
         blood_group: profile.blood_group,
         date_of_birth: profile.date_of_birth || "1998-01-01",
         weight_kg: String(profile.weight_kg || "60"),
         gender: (profile.gender as "M" | "F" | "O") || "O",
         is_available: profile.is_available,
-        lat: String(profile.location?.lat ?? "0"),
-        lng: String(profile.location?.lng ?? "0"),
-      });
+        // Do not overwrite a valid current-location in UI with empty/invalid profile coordinates.
+        lat: hasResolvedLocation ? String(profileLat) : prev.lat,
+        lng: hasResolvedLocation ? String(profileLng) : prev.lng,
+      }));
 
       setRequestForm((prev) => ({
         ...prev,
         blood_group_needed: profile.blood_group || prev.blood_group_needed,
-        lat: String(profile.location?.lat ?? prev.lat),
-        lng: String(profile.location?.lng ?? prev.lng),
+        lat: hasResolvedLocation ? String(profileLat) : prev.lat,
+        lng: hasResolvedLocation ? String(profileLng) : prev.lng,
       }));
-
-      setFeed(nearbyResult.status === "fulfilled" ? nearbyResult.value : []);
       setRequests(allRequests);
-      setEligibility(eligibilityResult.status === "fulfilled" ? eligibilityResult.value : null);
-      setSummary(summaryResult.status === "fulfilled" ? summaryResult.value : null);
 
       if (meResult.status === "fulfilled") {
         setUserId(meResult.value.id);
         setDisplayName(meResult.value.first_name || meResult.value.email.split("@")[0]);
       }
 
-      if (medicalCentersResult.status === "fulfilled") {
-        setMedicalCenters(medicalCentersResult.value.items);
-        setDetectedCity(medicalCentersResult.value.city || "");
+      // Load feed and summary only when location is valid to avoid server-side 400.
+      if (hasResolvedLocation) {
+        const [nearbyResult, eligibilityResult, summaryResult] = await Promise.allSettled([
+          getDonorFeed(activeToken, radius),
+          getDonorEligibility(activeToken),
+          getDonorSummary(activeToken, radius),
+        ]);
+
+        setFeed(nearbyResult.status === "fulfilled" ? nearbyResult.value : []);
+        setEligibility(eligibilityResult.status === "fulfilled" ? eligibilityResult.value : null);
+        setSummary(summaryResult.status === "fulfilled" ? summaryResult.value : null);
+
+        if (nearbyResult.status !== "fulfilled") {
+          pushToast("error", formatErrorMessage(nearbyResult.reason, "Nearby feed could not be loaded."));
+        }
+        if (eligibilityResult.status !== "fulfilled") {
+          pushToast("error", formatErrorMessage(eligibilityResult.reason, "Eligibility details could not be loaded."));
+        }
+        if (summaryResult.status !== "fulfilled") {
+          pushToast("error", formatErrorMessage(summaryResult.reason, "Summary statistics could not be loaded."));
+        }
+      } else {
+        setFeed([]);
+        const eligibility = await getDonorEligibility(activeToken).catch(() => null);
+        setEligibility(eligibility);
+        setSummary(null);
+        pushToast("info", "Location is required for nearby feed. Please allow location access.");
+      }
+
+      // Always try to load city centers from current location; if strict call fails, use relaxed city fallback.
+      if (hasResolvedLocation) {
+        const userCity = await reverseGeocodeCity(profileLat, profileLng);
+        const resolvedCity = (userCity || "").trim();
+        if (resolvedCity) {
+          try {
+            const strictCityCenters = await getPublicMedicalCenters({
+              city: resolvedCity,
+              centerType: "HOSPITAL",
+              strictCity: true,
+              limit: 200,
+            });
+            const strictItems = strictCityCenters.items.filter((item) => cityMatches(item.city || "", resolvedCity));
+
+            if (strictItems.length) {
+              setMedicalCenters(strictItems);
+              setDetectedCity(resolvedCity);
+            } else {
+              const relaxedCityCenters = await getPublicMedicalCenters({
+                city: resolvedCity,
+                centerType: "HOSPITAL",
+                limit: 200,
+              });
+              const relaxedItems = relaxedCityCenters.items.filter((item) => cityMatches(item.city || "", resolvedCity));
+              setMedicalCenters(relaxedItems);
+              setDetectedCity(resolvedCity);
+            }
+          } catch {
+            // Last fallback keeps city-based matching by name only.
+            const centerFallback = await getMedicalCenters(activeToken, {
+              city: resolvedCity,
+              centerType: "HOSPITAL",
+            }).catch(() => null);
+            const fallbackItems = centerFallback?.items?.filter((item) => cityMatches(item.city || "", resolvedCity)) || [];
+            setMedicalCenters(fallbackItems);
+            setDetectedCity(resolvedCity);
+          }
+        } else {
+          setMedicalCenters([]);
+          setDetectedCity("");
+        }
       } else {
         setMedicalCenters([]);
         setDetectedCity("");
-      }
-
-      if (nearbyResult.status !== "fulfilled") {
-        pushToast("error", formatErrorMessage(nearbyResult.reason, "Nearby feed could not be loaded."));
-      }
-      if (eligibilityResult.status !== "fulfilled") {
-        pushToast("error", formatErrorMessage(eligibilityResult.reason, "Eligibility details could not be loaded."));
-      }
-      if (summaryResult.status !== "fulfilled") {
-        pushToast("error", formatErrorMessage(summaryResult.reason, "Summary statistics could not be loaded."));
-      }
-      if (medicalCentersResult.status !== "fulfilled") {
-        pushToast("error", formatErrorMessage(medicalCentersResult.reason, "Medical centers are unavailable right now."));
       }
     } catch (error) {
       pushToast("error", formatErrorMessage(error, "Failed to load donor dashboard."));
@@ -375,7 +548,14 @@ export default function DonorDashboardPage() {
       const coords = await new Promise<GeolocationCoordinates>((resolve, reject) => {
         navigator.geolocation.getCurrentPosition(
           (position) => resolve(position.coords),
-          () => reject(new Error("Unable to fetch your location. Check browser location permissions.")),
+          (error) => {
+            const reason = error.code === error.PERMISSION_DENIED
+              ? "Location permission denied."
+              : error.code === error.POSITION_UNAVAILABLE
+                ? "Location is unavailable."
+                : "Location request timed out.";
+            reject(new Error(`${reason} ${geolocationBlockedHint()}`.trim()));
+          },
           {
             enableHighAccuracy: true,
             timeout: 12_000,
@@ -459,13 +639,26 @@ export default function DonorDashboardPage() {
       return;
     }
 
+    const age = Number(calculateAgeFromDateOfBirth(form.date_of_birth));
+    if (!Number.isFinite(age) || age < 18 || age > 100) {
+      pushToast("error", "Donor age must be between 18 and 100 years.");
+      return;
+    }
+
     if (!Number.isFinite(weight) || weight < 30 || weight > 300) {
       pushToast("error", "Weight must be between 30 kg and 300 kg.");
       return;
     }
 
     if (!location) {
-      pushToast("error", "Please enter valid coordinates (latitude -90 to 90, longitude -180 to 180).");
+      // Provide more specific error message
+      if (!form.lat.trim() || !form.lng.trim()) {
+        pushToast("error", "Location is required. Please use Auto-detect or drag the map marker.");
+      } else if (Number(form.lat) === 0 && Number(form.lng) === 0) {
+        pushToast("error", "Please set a valid location. The (0,0) coordinates are not allowed.");
+      } else {
+        pushToast("error", "Please enter valid coordinates (latitude -90 to 90, longitude -180 to 180).");
+      }
       return;
     }
 
@@ -544,7 +737,16 @@ export default function DonorDashboardPage() {
     }
 
     if (!location) {
-      pushToast("error", "Please enter valid coordinates for request location. You can also auto-detect location in Profile.");
+      // Provide more specific error message
+      const lat = Number(requestForm.lat || form.lat);
+      const lng = Number(requestForm.lng || form.lng);
+      if ((isNaN(lat) && !requestForm.lat) || (isNaN(lng) && !requestForm.lng)) {
+        pushToast("error", "Please enter valid coordinates for request location. You can also auto-detect location in Profile.");
+      } else if (lat === 0 && lng === 0) {
+        pushToast("error", "Please set a valid location. The (0,0) coordinates are not allowed. Auto-detect from Profile or drag the map.");
+      } else {
+        pushToast("error", "Please enter valid coordinates for request location. You can also auto-detect location in Profile.");
+      }
       return;
     }
 
@@ -807,17 +1009,30 @@ export default function DonorDashboardPage() {
   return (
     <RequireRole roles={["DONOR"]}>
       <ToastStack toasts={toasts} onDismiss={dismissToast} />
-      <main className="page">
-        <section className="container hero">
-          <div className="dashboard-topbar section">
-            <div className="topbar-logo">BloodLink</div>
-            <div style={{ flex: 1 }}></div>
+      <main className="page dashboard-page">
+        <header className="dashboard-topbar">
+          <div className="container dashboard-topbar-inner">
+            <div className="topbar-logo" aria-label="BloodLink Pakistan">
+              <div className="topbar-logo-icon" aria-hidden="true">
+                <svg viewBox="0 0 36 36" fill="none" xmlns="http://www.w3.org/2000/svg">
+                  <path d="M18 4C18 4 6 14 6 22C6 28.627 11.373 34 18 34C24.627 34 30 28.627 30 22C30 14 18 4 18 4Z" fill="#C8102E" />
+                  <path d="M18 10C18 10 11 17 11 22C11 25.866 14.134 29 18 29C21.866 29 25 25.866 25 22C25 17 18 10 18 10Z" fill="rgba(255,255,255,0.15)" />
+                  <line x1="18" y1="16" x2="18" y2="28" stroke="rgba(255,255,255,0.6)" strokeWidth="1.5" />
+                  <line x1="12" y1="22" x2="24" y2="22" stroke="rgba(255,255,255,0.6)" strokeWidth="1.5" />
+                </svg>
+              </div>
+              <span className="topbar-logo-text">BLOOD<span>LINK PK</span></span>
+            </div>
+            <div className="topbar-spacer" />
             <div className="topbar-right">
               <ThemeToggle />
               <Link href="/dashboard/donor/inbox" className="btn btn-primary">Inbox</Link>
               <button className="btn" onClick={logout}>Logout</button>
             </div>
           </div>
+        </header>
+
+        <section className="container hero dashboard-main">
           <div className="dash-top">
             <div>
               <div className="brand">Donor Dashboard</div>
@@ -857,24 +1072,48 @@ export default function DonorDashboardPage() {
               <div className="panel">
                 <div className="panel-head"><div className="panel-title">Overview Stats</div></div>
                 <div style={{ padding: 14 }}>
-                  <div className="notice">Eligibility: {summary?.is_eligible ? "Ready to Donate" : "Not yet eligible"}</div>
-                  <div className="notice">Next eligible on: {summary?.next_eligible_on || eligibility?.eligible_on || "--"}</div>
-                  <div className="notice">Compatible requests ({form.blood_group}): {compatibleRequests.length}</div>
-                  <div className="notice">Open network requests: {requests.length}</div>
+                  <div className="overview-grid">
+                    <div className="overview-stat">
+                      <div className="overview-stat-label">Eligibility</div>
+                      <div className="overview-stat-value">{summary?.is_eligible ? "Ready" : "Waiting"}</div>
+                    </div>
+                    <div className="overview-stat">
+                      <div className="overview-stat-label">Compatible ({form.blood_group})</div>
+                      <div className="overview-stat-value">{compatibleRequests.length}</div>
+                    </div>
+                    <div className="overview-stat">
+                      <div className="overview-stat-label">Nearby Open</div>
+                      <div className="overview-stat-value">{summary?.nearby_open_requests ?? feed.length}</div>
+                    </div>
+                    <div className="overview-stat">
+                      <div className="overview-stat-label">Resolution Rate</div>
+                      <div className="overview-stat-value">{donorRequestStats.resolutionRate}%</div>
+                    </div>
+                  </div>
+                  <div className="overview-meta-row">
+                    <span className="badge accepted">Next eligible: {summary?.next_eligible_on || eligibility?.eligible_on || "--"}</span>
+                    <span className="badge pending">Days remaining: {summary?.days_until_eligible ?? eligibility?.days_remaining ?? 0}</span>
+                  </div>
                 </div>
               </div>
               <div className="panel">
-                <div className="panel-head"><div className="panel-title">Donation Timeline</div></div>
+                <div className="panel-head"><div className="panel-title">Request Trend</div></div>
                 <div style={{ padding: 14 }}>
-                  {summary?.donation_timeline?.length ? (
-                    summary.donation_timeline.map((entry) => (
-                      <div key={entry.id} className="activity-item">
-                        {new Date(entry.accepted_at).toLocaleDateString()} • {entry.hospital_name} • {entry.blood_group} • {entry.status}
-                      </div>
-                    ))
-                  ) : (
-                    <div className="notice">No donation timeline entries yet.</div>
-                  )}
+                  <div className="trend-row">
+                    <div className="trend-label">Active</div>
+                    <div className="trend-track"><div className="trend-fill trend-fill-active" style={{ width: `${Math.round((donorRequestStats.active / donorRequestStats.denominator) * 100)}%` }} /></div>
+                    <div className="trend-value">{donorRequestStats.active}</div>
+                  </div>
+                  <div className="trend-row">
+                    <div className="trend-label">Partial</div>
+                    <div className="trend-track"><div className="trend-fill trend-fill-partial" style={{ width: `${Math.round((donorRequestStats.partial / donorRequestStats.denominator) * 100)}%` }} /></div>
+                    <div className="trend-value">{donorRequestStats.partial}</div>
+                  </div>
+                  <div className="trend-row">
+                    <div className="trend-label">Fulfilled</div>
+                    <div className="trend-track"><div className="trend-fill trend-fill-fulfilled" style={{ width: `${Math.round((donorRequestStats.fulfilled / donorRequestStats.denominator) * 100)}%` }} /></div>
+                    <div className="trend-value">{donorRequestStats.fulfilled}</div>
+                  </div>
                 </div>
               </div>
             </div>
@@ -901,7 +1140,7 @@ export default function DonorDashboardPage() {
 
                   {/* PERSONAL INFORMATION SECTION */}
                   <div className="profile-section section">
-                    <div className="profile-section-title">👤 Personal Information</div>
+                    <div className="profile-section-title">Personal Information</div>
                     <form className="form-row form-row-half">
                       <div className="form-group form-group-last">
                         <label className="form-label">Blood Group</label>
@@ -912,6 +1151,34 @@ export default function DonorDashboardPage() {
                       <div className="form-group form-group-last">
                         <label className="form-label">Date of Birth</label>
                         <input className="input" type="date" max={maxBirthDate} value={form.date_of_birth} onChange={(e) => setForm((p) => ({ ...p, date_of_birth: e.target.value }))} disabled={!isProfileEditing} />
+                      </div>
+                      <div className="form-group form-group-last">
+                        <label className="form-label">Age (years)</label>
+                        <input
+                          className="input"
+                          type="number"
+                          min={18}
+                          max={100}
+                          step={1}
+                          value={ageYears}
+                          onChange={(e) => {
+                            const numeric = e.target.value.replace(/\D/g, "");
+                            setAgeYears(numeric);
+                            if (!numeric) {
+                              return;
+                            }
+                            const parsedAge = Number(numeric);
+                            if (!Number.isInteger(parsedAge) || parsedAge < 18 || parsedAge > 100) {
+                              return;
+                            }
+                            setForm((p) => ({
+                              ...p,
+                              date_of_birth: deriveDateOfBirthFromAge(parsedAge, p.date_of_birth),
+                            }));
+                          }}
+                          placeholder="28"
+                          disabled={!isProfileEditing}
+                        />
                       </div>
                       <div className="form-group form-group-last">
                         <label className="form-label">Weight (kg)</label>
@@ -937,7 +1204,7 @@ export default function DonorDashboardPage() {
 
                   {/* LOCATION INFORMATION SECTION */}
                   <div className="profile-section section">
-                    <div className="profile-section-title">📍 Location Information</div>
+                    <div className="profile-section-title">Location Information</div>
                     
                     <div className="location-picker">
                       <div className="location-buttons">
@@ -997,7 +1264,7 @@ export default function DonorDashboardPage() {
                   {/* PASSWORD CHANGE SECTION */}
                   {isProfileEditing && (
                     <div className="password-change-section section">
-                      <div className="profile-section-title">🔐 Change Password</div>
+                      <div className="profile-section-title">Change Password</div>
                       <form className="form-row" onSubmit={(e) => { e.preventDefault(); }}>
                         <div className="form-group form-group-last">
                           <label className="form-label">Current Password</label>
@@ -1068,10 +1335,8 @@ export default function DonorDashboardPage() {
                       setRequestForm((prev) => ({
                         ...prev,
                         hospital_name: center.name,
-                        lat: String(center.location.lat),
-                        lng: String(center.location.lng),
                       }));
-                      pushToast("info", `Selected ${center.name} (${center.city}).`);
+                      pushToast("info", `Selected ${center.name} (${center.city}). Keeping your current map location.`);
                     }}
                   >
                     <option value="">Select medical center (optional)</option>
@@ -1267,7 +1532,7 @@ export default function DonorDashboardPage() {
                     ) : null}
                   </div>
                 </div>
-                <div className="notice">Showing {mapPoints.length} points on map.</div>
+                <div className="notice">Map shows only your current location.</div>
               </div>
             </div>
               )}

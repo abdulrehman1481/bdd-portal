@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { FormEvent, useState } from "react";
 import { PublicOnly } from "@/components/AuthGuards";
-import { MedicalCenter, RegisterPayload, getPublicMedicalCenters, registerUser } from "@/lib/api";
+import { MedicalCenter, RegisterPayload, getPublicMedicalCenters, registerUser, reverseGeocodeCity } from "@/lib/api";
 
 const initialForm: RegisterPayload = {
   email: "",
@@ -25,9 +25,44 @@ export default function SignUpPage() {
   const [selectedCenterId, setSelectedCenterId] = useState("");
   const [message, setMessage] = useState("");
 
+  function normalizeCityName(city: string): string {
+    return city
+      .toLowerCase()
+      .replace(/[^a-z\s]/g, " ")
+      .replace(/\b(city|district|division|tehsil|capital|territory|pakistan)\b/g, " ")
+      .replace(/\s+/g, " ")
+      .trim();
+  }
+
+  function filterCentersByCity(items: MedicalCenter[], city: string): MedicalCenter[] {
+    const normalizedCity = normalizeCityName(city);
+    if (!normalizedCity) return items;
+    return items.filter((center) => {
+      const centerCity = normalizeCityName(center.city || "");
+      return centerCity === normalizedCity || centerCity.includes(normalizedCity) || normalizedCity.includes(centerCity);
+    });
+  }
+
+  function geolocationBlockedHint(): string {
+    if (typeof window === "undefined") return "";
+    const isLocalhost = window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1";
+    if (!window.isSecureContext && !isLocalhost) {
+      return " Location is often blocked on non-HTTPS LAN URLs. Use https or localhost for automatic detection.";
+    }
+    return "";
+  }
+
+  async function loadFallbackHospitals() {
+    setNearbyCenters([]);
+    setDetectedCity("");
+    setSelectedCenterId("");
+    setMessage("Location is required to show hospitals from your city only. Please allow location access.");
+  }
+
   async function loadNearbyCenters() {
     if (!navigator.geolocation) {
-      setMessage("Geolocation is not supported in this browser.");
+      setMessage(`Geolocation is not supported in this browser.${geolocationBlockedHint()}`);
+      await loadFallbackHospitals();
       return;
     }
 
@@ -36,16 +71,66 @@ export default function SignUpPage() {
     navigator.geolocation.getCurrentPosition(
       async (position) => {
         try {
-          const payload = await getPublicMedicalCenters({
-            lat: position.coords.latitude,
-            lng: position.coords.longitude,
+          const lat = position.coords.latitude;
+          const lng = position.coords.longitude;
+          const userCity = await reverseGeocodeCity(lat, lng);
+          const resolvedCity = (userCity || "").trim();
+
+          if (!resolvedCity) {
+            // Fallback 1: ask API to infer city from current coordinates.
+            const inferredPayload = await getPublicMedicalCenters({
+              lat,
+              lng,
+              centerType: "HOSPITAL",
+              limit: 120,
+            });
+            const inferredCity = (inferredPayload.city || "").trim();
+            const inferredItems = inferredCity
+              ? filterCentersByCity(inferredPayload.items, inferredCity)
+              : inferredPayload.items;
+            setNearbyCenters(inferredItems);
+            setDetectedCity(inferredCity);
+            if (!inferredItems.length) {
+              setMessage("Could not determine your city. Please try again from a stable location signal.");
+            }
+            return;
+          }
+
+          // Primary: strict city filtering
+          const strictPayload = await getPublicMedicalCenters({
+            city: resolvedCity,
             centerType: "HOSPITAL",
-            limit: 50,
+            strictCity: true,
+            limit: 120,
           });
-          setNearbyCenters(payload.items);
-          setDetectedCity(payload.city || "");
-          if (!payload.items.length) {
-            setMessage("No nearby hospitals found for your city yet.");
+          let cityItems = filterCentersByCity(strictPayload.items, resolvedCity);
+
+          // Fallback 2: relaxed city query if strict yields none
+          if (!cityItems.length) {
+            const relaxedPayload = await getPublicMedicalCenters({
+              city: resolvedCity,
+              centerType: "HOSPITAL",
+              limit: 120,
+            });
+            cityItems = filterCentersByCity(relaxedPayload.items, resolvedCity);
+          }
+
+          // Fallback 3: coordinate-based query but still filtered by city name
+          if (!cityItems.length) {
+            const coordPayload = await getPublicMedicalCenters({
+              lat,
+              lng,
+              centerType: "HOSPITAL",
+              limit: 120,
+            });
+            cityItems = filterCentersByCity(coordPayload.items, resolvedCity);
+          }
+
+          setNearbyCenters(cityItems);
+          setDetectedCity(resolvedCity);
+
+          if (!cityItems.length) {
+            setMessage(`No hospitals found in ${resolvedCity}.`);
           }
         } catch (error) {
           setMessage(error instanceof Error ? error.message : "Failed to load nearby hospitals.");
@@ -54,8 +139,10 @@ export default function SignUpPage() {
         }
       },
       () => {
-        setCentersLoading(false);
-        setMessage("Unable to detect location. Please allow location access.");
+        void loadFallbackHospitals().finally(() => {
+          setCentersLoading(false);
+          setMessage(`Unable to detect location. Please allow location access.${geolocationBlockedHint()}`);
+        });
       }
     );
   }
@@ -75,10 +162,28 @@ export default function SignUpPage() {
       ? form.phone_number.trim()
       : `+${form.phone_number.trim()}`;
 
-    if (form.role === "HOSPITAL" && !selectedCenterId) {
-      setMessage("Please detect location and select your hospital from nearby list.");
-      setLoading(false);
-      return;
+    if (form.role === "HOSPITAL") {
+      // Validate hospital selection
+      if (!selectedCenterId) {
+        setMessage("Please detect location and select your hospital from the nearby list.");
+        setLoading(false);
+        return;
+      }
+      
+      // Validate that a center was actually loaded
+      const selectedCenter = nearbyCenters.find((c) => String(c.id) === selectedCenterId);
+      if (!selectedCenter) {
+        setMessage("Selected hospital is no longer available. Please reload the hospital list.");
+        setLoading(false);
+        return;
+      }
+      
+      // Validate city detection (at least one of these should be true)
+      if (!detectedCity && nearbyCenters.length === 0) {
+        setMessage("Unable to detect your city and no hospitals are available. Please try 'Load Hospitals Without Location'.");
+        setLoading(false);
+        return;
+      }
     }
 
     try {
@@ -182,13 +287,21 @@ export default function SignUpPage() {
                   >
                     {centersLoading ? "Locating..." : "Use Current Location for Nearby Hospitals"}
                   </button>
+                  <button
+                    className="btn"
+                    type="button"
+                    onClick={() => void loadFallbackHospitals()}
+                    disabled={centersLoading}
+                  >
+                    Load Hospitals Without Location
+                  </button>
                   <select
                     className="select"
                     value={selectedCenterId}
                     onChange={(e) => setSelectedCenterId(e.target.value)}
                     required={form.role === "HOSPITAL"}
                   >
-                    <option value="">Select hospital from nearby city (optional)</option>
+                    <option value="">Select hospital from list</option>
                     {nearbyCenters.map((center) => (
                       <option key={center.id} value={center.id}>
                         {center.name} - {center.city}{center.area ? ` (${center.area})` : ""}

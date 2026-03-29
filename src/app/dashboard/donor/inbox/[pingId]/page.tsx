@@ -10,6 +10,7 @@ import {
 } from "@/lib/api";
 import { RequireRole } from "@/components/AuthGuards";
 import ToastStack from "@/components/ToastStack";
+import ThemeToggle from "@/components/ThemeToggle";
 import { getStoredToken } from "@/lib/session";
 import { useToastQueue } from "@/lib/useToastQueue";
 
@@ -69,8 +70,29 @@ export default function DonorInboxPingDetailPage() {
   return (
     <RequireRole roles={["DONOR"]}>
       <ToastStack toasts={toasts} onDismiss={dismissToast} />
-      <main className="page">
-        <section className="container hero">
+      <main className="page dashboard-page">
+        <header className="dashboard-topbar">
+          <div className="container dashboard-topbar-inner">
+            <div className="topbar-logo" aria-label="BloodLink Pakistan">
+              <div className="topbar-logo-icon" aria-hidden="true">
+                <svg viewBox="0 0 36 36" fill="none" xmlns="http://www.w3.org/2000/svg">
+                  <path d="M18 4C18 4 6 14 6 22C6 28.627 11.373 34 18 34C24.627 34 30 28.627 30 22C30 14 18 4 18 4Z" fill="#C8102E" />
+                  <path d="M18 10C18 10 11 17 11 22C11 25.866 14.134 29 18 29C21.866 29 25 25.866 25 22C25 17 18 10 18 10Z" fill="rgba(255,255,255,0.15)" />
+                  <line x1="18" y1="16" x2="18" y2="28" stroke="rgba(255,255,255,0.6)" strokeWidth="1.5" />
+                  <line x1="12" y1="22" x2="24" y2="22" stroke="rgba(255,255,255,0.6)" strokeWidth="1.5" />
+                </svg>
+              </div>
+              <span className="topbar-logo-text">BLOOD<span>LINK PK</span></span>
+            </div>
+            <div className="topbar-spacer" />
+            <div className="topbar-right">
+              <ThemeToggle />
+              <button className="btn" onClick={() => router.back()}>Back</button>
+            </div>
+          </div>
+        </header>
+
+        <section className="container hero dashboard-main">
           <div className="dash-top">
             <div>
               <div className="brand">Donor Inbox</div>

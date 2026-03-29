@@ -19,6 +19,7 @@ import {
   HospitalSummary,
   MedicalCenter,
   getMedicalCenters,
+  reverseGeocodeCity,
   pingDonor,
   RadarDonor,
   RequestPingStatus,
@@ -136,6 +137,28 @@ export default function HospitalDashboardPage() {
     () => donors.filter((item) => item.is_eligible_to_donate !== false),
     [donors]
   );
+  const hospitalRequestStats = useMemo(() => {
+    const active = requests.filter((r) => r.status === "ACTIVE").length;
+    const partial = requests.filter((r) => r.status === "PARTIAL").length;
+    const fulfilled = requests.filter((r) => r.status === "FULFILLED").length;
+    const closed = requests.filter((r) => r.status === "CLOSED").length;
+    const critical = requests.filter((r) => r.urgency === "CRITICAL" && (r.status === "ACTIVE" || r.status === "PARTIAL")).length;
+    const expiringSoon = requests.filter((r) => {
+      const due = new Date(r.required_by_datetime).getTime();
+      return due > Date.now() && due <= Date.now() + 6 * 60 * 60 * 1000 && (r.status === "ACTIVE" || r.status === "PARTIAL");
+    }).length;
+    const denominator = Math.max(active + partial + fulfilled + closed, 1);
+    return {
+      active,
+      partial,
+      fulfilled,
+      closed,
+      critical,
+      expiringSoon,
+      denominator,
+      fulfillmentRate: Math.round((fulfilled / denominator) * 100),
+    };
+  }, [requests]);
   const mapRadiusMeters = useMemo(() => Math.max(radiusKm, 1) * 1000, [radiusKm]);
 
   const mapCenter = useMemo(() => {
@@ -145,18 +168,8 @@ export default function HospitalDashboardPage() {
   }, [profileForm.lat, profileForm.lng, requests]);
 
   const mapPoints = useMemo(() => {
-    const requestPoints = showRequests ? requests.map((item) => ({
-      id: item.id,
-      label: `${item.patient_name} (${item.blood_group_needed})`,
-      lat: item.location.lat,
-      lng: item.location.lng,
-      color: "#e83b55",
-    })) : [];
-
-    const donorPoints: Array<{ id: string | number; label: string; lat: number; lng: number; color: string }> = [];
-
-    return [...requestPoints, ...donorPoints];
-  }, [requests, eligibleDonors, showDonors, showRequests]);
+    return [] as Array<{ id: string | number; label: string; lat: number; lng: number; color: string }>;
+  }, []);
 
   const selectedMapRequest = useMemo(
     () => requests.find((item) => item.id === selectedMapRequestId) || requests[0] || null,
@@ -165,11 +178,8 @@ export default function HospitalDashboardPage() {
 
   // Auto-pan map to selected request location when viewing requests on map
   const effectiveMapCenter = useMemo(() => {
-    if (showRequests && selectedMapRequest) {
-      return selectedMapRequest.location;
-    }
     return mapCenter;
-  }, [showRequests, selectedMapRequest, mapCenter]);
+  }, [mapCenter]);
   const requestDraftCenter = useMemo(
     () => ({ lat: Number(requestForm.lat) || mapCenter.lat, lng: Number(requestForm.lng) || mapCenter.lng }),
     [requestForm.lat, requestForm.lng, mapCenter.lat, mapCenter.lng]
@@ -178,6 +188,61 @@ export default function HospitalDashboardPage() {
     () => new Date().toLocaleDateString("en-US", { weekday: "long", day: "numeric", month: "long", year: "numeric" }),
     []
   );
+
+  function normalizeCityName(city: string): string {
+    return city
+      .toLowerCase()
+      .replace(/[^a-z\s]/g, " ")
+      .replace(/\b(city|district|division|tehsil|capital|territory|pakistan)\b/g, " ")
+      .replace(/\s+/g, " ")
+      .trim();
+  }
+
+  function cityMatches(centerCity: string, detected: string): boolean {
+    const a = normalizeCityName(centerCity || "");
+    const b = normalizeCityName(detected || "");
+    if (!a || !b) return false;
+    return a === b || a.includes(b) || b.includes(a);
+  }
+
+  async function getBrowserLocationCoords(): Promise<{ lat: number; lng: number } | null> {
+    if (typeof window === "undefined" || !navigator.geolocation) {
+      return null;
+    }
+
+    try {
+      const coords = await new Promise<GeolocationCoordinates>((resolve, reject) => {
+        navigator.geolocation.getCurrentPosition(
+          (position) => resolve(position.coords),
+          () => reject(new Error("Location unavailable")),
+          {
+            enableHighAccuracy: true,
+            timeout: 10000,
+            maximumAge: 0,
+          }
+        );
+      });
+
+      const lat = Number(coords.latitude.toFixed(6));
+      const lng = Number(coords.longitude.toFixed(6));
+      if (!Number.isFinite(lat) || !Number.isFinite(lng) || (lat === 0 && lng === 0)) {
+        return null;
+      }
+
+      return { lat, lng };
+    } catch {
+      return null;
+    }
+  }
+
+  function geolocationBlockedHint(): string {
+    if (typeof window === "undefined") return "";
+    const isLocalhost = window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1";
+    if (!window.isSecureContext && !isLocalhost) {
+      return "Location access is blocked on non-HTTPS LAN URLs. Use https or localhost, or set coordinates manually.";
+    }
+    return "";
+  }
 
   function handleMapPointClick(pointId: string | number) {
     if (typeof pointId === "string" && pointId.startsWith("donor-")) {
@@ -250,7 +315,7 @@ export default function HospitalDashboardPage() {
     if (Number(profileForm.lat) !== 0 || Number(profileForm.lng) !== 0) return;
 
     setAutoDetectAttempted(true);
-    void detectLocation();
+    void detectLocation(true);
   }, [autoDetectAttempted, profileForm.lat, profileForm.lng]);
 
   async function loadDashboard(activeToken: string) {
@@ -259,11 +324,10 @@ export default function HospitalDashboardPage() {
     setMessage("");
 
     try {
-      const [summaryData, requestData, profile, medicalCentersResult] = await Promise.allSettled([
+      const [summaryData, requestData, profile] = await Promise.allSettled([
         getHospitalSummary(activeToken),
         getRequests(activeToken, { includeHistory: true }),
         getHospitalProfile(activeToken),
-        getMedicalCenters(activeToken),
       ]);
 
       const me = await getMe(activeToken);
@@ -280,42 +344,104 @@ export default function HospitalDashboardPage() {
         const profileData = profile.value;
         setProfile(profileData);
 
-        setProfileForm({
+        let resolvedLat = Number(profileData.location?.lat);
+        let resolvedLng = Number(profileData.location?.lng);
+        const browserLoc = await getBrowserLocationCoords();
+        if (browserLoc) {
+          resolvedLat = browserLoc.lat;
+          resolvedLng = browserLoc.lng;
+
+          const profileLat = Number(profileData.location?.lat);
+          const profileLng = Number(profileData.location?.lng);
+          const profileNeedsSync =
+            !Number.isFinite(profileLat) ||
+            !Number.isFinite(profileLng) ||
+            profileLat === 0 ||
+            profileLng === 0 ||
+            Math.abs(profileLat - browserLoc.lat) > 0.0003 ||
+            Math.abs(profileLng - browserLoc.lng) > 0.0003;
+
+          if (profileNeedsSync) {
+            await upsertHospitalProfile(activeToken, {
+              location: { lat: resolvedLat, lng: resolvedLng },
+            });
+          }
+        }
+
+        const hasResolvedLocation =
+          Number.isFinite(resolvedLat) && Number.isFinite(resolvedLng) && !(resolvedLat === 0 && resolvedLng === 0);
+
+        setProfileForm((prev) => ({
           facility_name: profileData.facility_name || "",
           license_number: profileData.license_number || "",
           nodal_officer_name: profileData.nodal_officer_name || "",
           emergency_phone: profileData.emergency_phone || "",
-          lat: String(profileData.location?.lat ?? ""),
-          lng: String(profileData.location?.lng ?? ""),
-        });
+          lat: hasResolvedLocation ? String(resolvedLat) : prev.lat,
+          lng: hasResolvedLocation ? String(resolvedLng) : prev.lng,
+        }));
 
         setRequestForm((prev) => ({
           ...prev,
-          hospital_name: profileData.facility_name || prev.hospital_name,
-          lat: String(profileData.location?.lat ?? prev.lat),
-          lng: String(profileData.location?.lng ?? prev.lng),
+          hospital_name: profileData.facility_name || prev.hospital_name || "Hospital",
+          lat: hasResolvedLocation ? String(resolvedLat) : prev.lat,
+          lng: hasResolvedLocation ? String(resolvedLng) : prev.lng,
         }));
 
         if (!profileData.is_verified_by_admin) {
           setMessage("Hospital account is not yet admin-verified. You can still test dashboard and requests for now.");
         }
 
-        const radar = await getRadarDonors(
-          activeToken,
-          bloodGroup,
-          radiusKm,
-          profileData.location?.lat,
-          profileData.location?.lng
-        );
-        setDonors(radar);
-      }
+        if (hasResolvedLocation) {
+          try {
+            const radar = await getRadarDonors(
+              activeToken,
+              bloodGroup,
+              radiusKm,
+              resolvedLat,
+              resolvedLng
+            );
+            setDonors(radar);
+          } catch {
+            setDonors([]);
+          }
 
-      if (medicalCentersResult.status === "fulfilled") {
-        setMedicalCenters(medicalCentersResult.value.items);
-        setDetectedCity(medicalCentersResult.value.city || "");
-      } else {
-        setMedicalCenters([]);
-        setDetectedCity("");
+          const userCity = await reverseGeocodeCity(resolvedLat, resolvedLng);
+          const resolvedCity = (userCity || "").trim();
+
+          if (resolvedCity) {
+            try {
+              const strictCenters = await getMedicalCenters(activeToken, {
+                centerType: "HOSPITAL",
+                city: resolvedCity,
+                strictCity: true,
+              });
+              const strictItems = strictCenters.items.filter((item) => cityMatches(item.city || "", resolvedCity));
+
+              if (strictItems.length) {
+                setMedicalCenters(strictItems);
+                setDetectedCity(resolvedCity);
+              } else {
+                const relaxedCenters = await getMedicalCenters(activeToken, {
+                  centerType: "HOSPITAL",
+                  city: resolvedCity,
+                });
+                const relaxedItems = relaxedCenters.items.filter((item) => cityMatches(item.city || "", resolvedCity));
+                setMedicalCenters(relaxedItems);
+                setDetectedCity(resolvedCity);
+              }
+            } catch {
+              setMedicalCenters([]);
+              setDetectedCity(resolvedCity);
+            }
+          } else {
+            setMedicalCenters([]);
+            setDetectedCity("");
+          }
+        } else {
+          setDonors([]);
+          setMedicalCenters([]);
+          setDetectedCity("");
+        }
       }
     } catch (error) {
       pushToast("error", error instanceof Error ? error.message : "Failed to load dashboard.");
@@ -347,22 +473,45 @@ export default function HospitalDashboardPage() {
     }
   }
 
-  async function detectLocation() {
+  async function detectLocation(saveAfterDetect = false) {
     if (!navigator.geolocation) {
       setMessage("Geolocation is not supported in this browser.");
       return;
     }
 
     navigator.geolocation.getCurrentPosition(
-      (position) => {
+      async (position) => {
         const lat = position.coords.latitude.toFixed(6);
         const lng = position.coords.longitude.toFixed(6);
         setProfileForm((prev) => ({ ...prev, lat, lng }));
-        setRequestForm((prev) => ({ ...prev, lat, lng }));
+        setRequestForm((prev) => ({
+          ...prev,
+          hospital_name: prev.hospital_name || profileForm.facility_name || "Hospital",
+          lat,
+          lng,
+        }));
+
+        if (saveAfterDetect && token) {
+          try {
+            await upsertHospitalProfile(token, {
+              location: { lat: Number(lat), lng: Number(lng) },
+            });
+            pushToast("success", "Location auto-detected and saved.");
+          } catch {
+            pushToast("info", "Location detected. Please save profile to persist it.");
+          }
+          return;
+        }
+
         pushToast("success", "Location auto-detected. Save profile to persist it.");
       },
-      () => {
-        pushToast("error", "Unable to detect location. Please enable browser location permission.");
+      (error) => {
+        const reason = error.code === error.PERMISSION_DENIED
+          ? "Location permission denied."
+          : error.code === error.POSITION_UNAVAILABLE
+            ? "Location is unavailable."
+            : "Location request timed out.";
+        pushToast("error", `${reason} ${geolocationBlockedHint()}`.trim());
       }
     );
   }
@@ -417,9 +566,42 @@ export default function HospitalDashboardPage() {
     });
   }
 
-  async function handleSaveProfile(event: FormEvent) {
-    event.preventDefault();
+  async function handleSaveProfile(event?: FormEvent) {
+    if (event) {
+      event.preventDefault();
+    }
     if (!token) return;
+
+    // Validate location
+    const lat = Number(profileForm.lat);
+    const lng = Number(profileForm.lng);
+    
+    if (!profileForm.lat.trim() || !profileForm.lng.trim()) {
+      pushToast("error", "Location is required. Please use Auto-detect or drag the map marker.");
+      return;
+    }
+    
+    if (isNaN(lat) || isNaN(lng)) {
+      pushToast("error", "Invalid location coordinates. Please detect your location again.");
+      return;
+    }
+    
+    // Check for invalid (0,0) location
+    if (lat === 0 && lng === 0) {
+      pushToast("error", "Please set a valid location. The (0,0) coordinates are not allowed. Use Auto-detect or drag the map marker.");
+      return;
+    }
+    
+    // Validate latitude/longitude ranges
+    if (lat < -90 || lat > 90) {
+      pushToast("error", "Invalid latitude. Must be between -90 and 90.");
+      return;
+    }
+    
+    if (lng < -180 || lng > 180) {
+      pushToast("error", "Invalid longitude. Must be between -180 and 180.");
+      return;
+    }
 
     setLoading(true);
     setBusyText("Saving hospital profile...");
@@ -431,7 +613,7 @@ export default function HospitalDashboardPage() {
         license_number: profileForm.license_number,
         nodal_officer_name: profileForm.nodal_officer_name,
         emergency_phone: profileForm.emergency_phone,
-        location: { lat: Number(profileForm.lat), lng: Number(profileForm.lng) },
+        location: { lat, lng },
       });
       pushToast("success", "Hospital profile updated successfully.");
       await loadDashboard(token);
@@ -447,42 +629,107 @@ export default function HospitalDashboardPage() {
     event.preventDefault();
     if (!token) return;
 
+    // Validate required fields
+    if (!requestForm.patient_name.trim()) {
+      pushToast("info", "Patient name is required.");
+      return;
+    }
+
+    const hospitalName = requestForm.hospital_name.trim() || profileForm.facility_name.trim() || "Hospital";
+
     if (!requestForm.required_by_datetime) {
       pushToast("info", "Please provide required by date and time.");
       return;
     }
 
-    const requiredByIso = new Date(requestForm.required_by_datetime).toISOString();
+    // Validate location (with fallback to current browser location)
+    let lat = Number(requestForm.lat);
+    let lng = Number(requestForm.lng);
+    
+    if (!requestForm.lat.trim() || !requestForm.lng.trim() || isNaN(lat) || isNaN(lng) || (lat === 0 && lng === 0)) {
+      const browserLoc = await getBrowserLocationCoords();
+      if (browserLoc) {
+        lat = browserLoc.lat;
+        lng = browserLoc.lng;
+        setProfileForm((prev) => ({ ...prev, lat: String(lat), lng: String(lng) }));
+        setRequestForm((prev) => ({
+          ...prev,
+          hospital_name: hospitalName,
+          lat: String(lat),
+          lng: String(lng),
+        }));
+      }
+    }
+
+    if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
+      pushToast("error", "Invalid location coordinates. Please detect your location again.");
+      return;
+    }
+    
+    // Check for invalid (0,0) location
+    if (lat === 0 && lng === 0) {
+      pushToast("error", "Please set a valid location. The (0,0) coordinates are invalid. Use Auto-detect or drag the map marker.");
+      return;
+    }
+    
+    // Validate latitude/longitude ranges
+    if (lat < -90 || lat > 90) {
+      pushToast("error", "Invalid latitude. Must be between -90 and 90.");
+      return;
+    }
+    
+    if (lng < -180 || lng > 180) {
+      pushToast("error", "Invalid longitude. Must be between -180 and 180.");
+      return;
+    }
+
+    const requiredByDate = new Date(requestForm.required_by_datetime);
+    if (Number.isNaN(requiredByDate.getTime())) {
+      pushToast("error", "Invalid required-by date/time.");
+      return;
+    }
+    if (requiredByDate.getTime() <= Date.now()) {
+      pushToast("error", "Required-by date/time must be in the future.");
+      return;
+    }
+    const requiredByIso = requiredByDate.toISOString();
 
     setLoading(true);
     setBusyText("Creating blood request...");
     setMessage("");
 
     try {
+      // Update hospital profile with the request location
       await upsertHospitalProfile(token, {
-        facility_name: profileForm.facility_name || requestForm.hospital_name,
+        facility_name: profileForm.facility_name || hospitalName,
         nodal_officer_name: profileForm.nodal_officer_name,
         emergency_phone: profileForm.emergency_phone,
-        location: { lat: Number(requestForm.lat), lng: Number(requestForm.lng) },
+        location: { lat, lng },
       });
 
+      // Create the blood request with validated location
       await createRequest(token, {
-        patient_name: requestForm.patient_name,
+        patient_name: requestForm.patient_name.trim(),
         description: requestForm.description,
         patient_age: requestForm.patient_age ? Number(requestForm.patient_age) : undefined,
         blood_group_needed: requestForm.blood_group_needed,
         units_required: Number(requestForm.units_required),
         urgency: requestForm.urgency,
         required_by_datetime: requiredByIso,
-        hospital_name: requestForm.hospital_name,
-        location: { lat: Number(requestForm.lat), lng: Number(requestForm.lng) },
+        hospital_name: hospitalName,
+        location: { lat, lng },
       });
 
       pushToast("success", "Blood request created successfully.");
       changeTab("requests");
       await loadDashboard(token);
     } catch (error) {
-      pushToast("error", error instanceof Error ? error.message : "Failed to create request.");
+      const msg = error instanceof Error ? error.message : "Failed to create request.";
+      if (msg.includes("location") || msg.includes("lat") || msg.includes("lng")) {
+        pushToast("error", "Could not use your location for request creation. Please click Auto Detect Location and try again.");
+      } else {
+        pushToast("error", msg);
+      }
     } finally {
       setLoading(false);
       setBusyText("");
@@ -707,16 +954,29 @@ export default function HospitalDashboardPage() {
   return (
     <RequireRole roles={["HOSPITAL"]}>
       <ToastStack toasts={toasts} onDismiss={dismissToast} />
-      <main className="page">
-        <section className="container hero">
-          <div className="dashboard-topbar section">
-            <div className="topbar-logo">BloodLink</div>
-            <div style={{ flex: 1 }}></div>
+      <main className="page dashboard-page">
+        <header className="dashboard-topbar">
+          <div className="container dashboard-topbar-inner">
+            <div className="topbar-logo" aria-label="BloodLink Pakistan">
+              <div className="topbar-logo-icon" aria-hidden="true">
+                <svg viewBox="0 0 36 36" fill="none" xmlns="http://www.w3.org/2000/svg">
+                  <path d="M18 4C18 4 6 14 6 22C6 28.627 11.373 34 18 34C24.627 34 30 28.627 30 22C30 14 18 4 18 4Z" fill="#C8102E" />
+                  <path d="M18 10C18 10 11 17 11 22C11 25.866 14.134 29 18 29C21.866 29 25 25.866 25 22C25 17 18 10 18 10Z" fill="rgba(255,255,255,0.15)" />
+                  <line x1="18" y1="16" x2="18" y2="28" stroke="rgba(255,255,255,0.6)" strokeWidth="1.5" />
+                  <line x1="12" y1="22" x2="24" y2="22" stroke="rgba(255,255,255,0.6)" strokeWidth="1.5" />
+                </svg>
+              </div>
+              <span className="topbar-logo-text">BLOOD<span>LINK PK</span></span>
+            </div>
+            <div className="topbar-spacer" />
             <div className="topbar-right">
               <ThemeToggle />
               <button className="btn" onClick={logout}>Logout</button>
             </div>
           </div>
+        </header>
+
+        <section className="container hero dashboard-main">
           <div className="dash-top">
             <div>
               <div className="brand">Hospital Dashboard</div>
@@ -757,71 +1017,145 @@ export default function HospitalDashboardPage() {
               <div className="panel">
                 <div className="panel-head"><div className="panel-title">Overview Stats</div></div>
                 <div style={{ padding: 14 }}>
-                  <div className="notice">Your requests: {myRequests.length}</div>
-                  <div className="notice">Total network requests: {requests.length}</div>
-                  <div className="notice">Eligible donor matches: {eligibleDonors.length}</div>
-                  <div className="notice">Critical open: {summary?.critical_open ?? 0}</div>
+                  <div className="overview-grid">
+                    <div className="overview-stat">
+                      <div className="overview-stat-label">Your Requests</div>
+                      <div className="overview-stat-value">{myRequests.length}</div>
+                    </div>
+                    <div className="overview-stat">
+                      <div className="overview-stat-label">Network Requests</div>
+                      <div className="overview-stat-value">{requests.length}</div>
+                    </div>
+                    <div className="overview-stat">
+                      <div className="overview-stat-label">Eligible Matches</div>
+                      <div className="overview-stat-value">{eligibleDonors.length}</div>
+                    </div>
+                    <div className="overview-stat">
+                      <div className="overview-stat-label">Fulfillment Rate</div>
+                      <div className="overview-stat-value">{hospitalRequestStats.fulfillmentRate}%</div>
+                    </div>
+                  </div>
+                  <div className="overview-meta-row">
+                    <span className="badge critical">Critical Open: {summary?.critical_open ?? hospitalRequestStats.critical}</span>
+                    <span className="badge pending">Expiring ≤ 6h: {summary?.expiring_within_6h ?? hospitalRequestStats.expiringSoon}</span>
+                  </div>
                 </div>
               </div>
               <div className="panel">
                 <div className="panel-head"><div className="panel-title">Request Trend</div></div>
                 <div style={{ padding: 14 }}>
-                  <div className="bar-row"><div className="bar-label">Active</div><div className="bar-wrap"><div className="bar-fill" style={{ width: `${Math.min(requests.filter((r) => r.status === "ACTIVE").length * 10, 100)}%` }} /></div></div>
-                  <div className="bar-row"><div className="bar-label">Partial</div><div className="bar-wrap"><div className="bar-fill amber" style={{ width: `${Math.min(requests.filter((r) => r.status === "PARTIAL").length * 10, 100)}%` }} /></div></div>
-                  <div className="bar-row"><div className="bar-label">Fulfilled</div><div className="bar-wrap"><div className="bar-fill green" style={{ width: `${Math.min(requests.filter((r) => r.status === "FULFILLED").length * 10, 100)}%` }} /></div></div>
+                  <div className="trend-row">
+                    <div className="trend-label">Active</div>
+                    <div className="trend-track"><div className="trend-fill trend-fill-active" style={{ width: `${Math.round((hospitalRequestStats.active / hospitalRequestStats.denominator) * 100)}%` }} /></div>
+                    <div className="trend-value">{hospitalRequestStats.active}</div>
+                  </div>
+                  <div className="trend-row">
+                    <div className="trend-label">Partial</div>
+                    <div className="trend-track"><div className="trend-fill trend-fill-partial" style={{ width: `${Math.round((hospitalRequestStats.partial / hospitalRequestStats.denominator) * 100)}%` }} /></div>
+                    <div className="trend-value">{hospitalRequestStats.partial}</div>
+                  </div>
+                  <div className="trend-row">
+                    <div className="trend-label">Fulfilled</div>
+                    <div className="trend-track"><div className="trend-fill trend-fill-fulfilled" style={{ width: `${Math.round((hospitalRequestStats.fulfilled / hospitalRequestStats.denominator) * 100)}%` }} /></div>
+                    <div className="trend-value">{hospitalRequestStats.fulfilled}</div>
+                  </div>
                 </div>
               </div>
             </div>
               )}
 
               {activeTab === "profile" && (
-            <div className="panel section">
-              <div className="panel-head"><div className="panel-title">Hospital Profile and Settings</div></div>
-              <div style={{ padding: 14 }}>
-                <form className="form-grid" onSubmit={handleSaveProfile}>
-                  <input className="input" placeholder="Facility name" value={profileForm.facility_name} onChange={(e) => setProfileForm((p) => ({ ...p, facility_name: e.target.value }))} required />
-                  <input className="input" placeholder="License number" value={profileForm.license_number} onChange={(e) => setProfileForm((p) => ({ ...p, license_number: e.target.value }))} required />
-                  <input className="input" placeholder="Nodal officer name" value={profileForm.nodal_officer_name} onChange={(e) => setProfileForm((p) => ({ ...p, nodal_officer_name: e.target.value }))} required />
-                  <input className="input" placeholder="Emergency phone" value={profileForm.emergency_phone} onChange={(e) => setProfileForm((p) => ({ ...p, emergency_phone: e.target.value }))} required />
-                  <input className="input" placeholder="Latitude" value={profileForm.lat} onChange={(e) => setProfileForm((p) => ({ ...p, lat: e.target.value }))} required />
-                  <input className="input" placeholder="Longitude" value={profileForm.lng} onChange={(e) => setProfileForm((p) => ({ ...p, lng: e.target.value }))} required />
-                  <div className="actions compact-actions">
-                    <button className="btn" type="button" onClick={detectLocation}>Auto Detect Location</button>
-                    <button className="btn btn-primary" type="submit" disabled={loading}>{loading ? "Saving..." : "Save Profile"}</button>
+                <div className="dashboard-content">
+                  <div className="profile-section section">
+                    <div className="profile-section-title">Hospital Information</div>
+                    <form className="form-row form-row-half" onSubmit={handleSaveProfile}>
+                      <div className="form-group form-group-last">
+                        <label className="form-label">Facility Name</label>
+                        <input className="input" value={profileForm.facility_name} onChange={(e) => setProfileForm((p) => ({ ...p, facility_name: e.target.value }))} required />
+                      </div>
+                      <div className="form-group form-group-last">
+                        <label className="form-label">License Number</label>
+                        <input className="input" value={profileForm.license_number} onChange={(e) => setProfileForm((p) => ({ ...p, license_number: e.target.value }))} required />
+                      </div>
+                      <div className="form-group form-group-last">
+                        <label className="form-label">Nodal Officer Name</label>
+                        <input className="input" value={profileForm.nodal_officer_name} onChange={(e) => setProfileForm((p) => ({ ...p, nodal_officer_name: e.target.value }))} required />
+                      </div>
+                      <div className="form-group form-group-last">
+                        <label className="form-label">Emergency Phone</label>
+                        <input className="input" value={profileForm.emergency_phone} onChange={(e) => setProfileForm((p) => ({ ...p, emergency_phone: e.target.value }))} required />
+                      </div>
+                      <div className="form-group form-group-last">
+                        <label className="form-label">Verification Status</label>
+                        <div className={`badge ${profile?.is_verified_by_admin ? "accepted" : "pending"}`}>
+                          {profile?.is_verified_by_admin ? "Verified" : "Pending Verification"}
+                        </div>
+                      </div>
+                      <div className="form-group form-group-last">
+                        <label className="form-label">Detected City</label>
+                        <div className="notice" style={{ margin: 0 }}>
+                          {detectedCity || "Not detected yet"}
+                        </div>
+                      </div>
+                    </form>
                   </div>
-                </form>
-                <div className="notice">Verification status: {profile?.is_verified_by_admin ? "Verified" : "Pending Verification"}</div>
-                <div className="section">
-                  <LiveMap
-                    center={mapCenter}
-                    points={[
-                      {
-                        id: "hospital-profile-location",
-                        label: profileForm.facility_name || "Hospital location",
-                        lat: mapCenter.lat,
-                        lng: mapCenter.lng,
-                        color: "#dc2626",
-                      },
-                    ]}
-                    height={320}
-                    selectedPointId="hospital-profile-location"
-                    buffers={[
-                      {
-                        id: "hospital-profile-buffer",
-                        lat: mapCenter.lat,
-                        lng: mapCenter.lng,
-                        radiusMeters: mapRadiusMeters,
-                        color: "#dc2626",
-                        fillOpacity: 0.1,
-                        label: `Operational radius: ${radiusKm} km`,
-                      },
-                    ]}
-                    draggableCenter
-                    onCenterDrag={handleProfileMapDrag}
-                  />
+
+                  <div className="profile-section section">
+                    <div className="profile-section-title">Location Information</div>
+                    <div className="location-picker">
+                      <div className="location-buttons">
+                        <button className="btn" type="button" onClick={detectLocation} disabled={loading}>Auto Detect Current Location</button>
+                      </div>
+                      <div style={{ fontSize: 12, color: "var(--text-muted)" }}>
+                        Current Coordinates: <strong>{profileForm.lat || "0"}, {profileForm.lng || "0"}</strong>
+                      </div>
+                      <div className="location-manual-input">
+                        <div className="form-group form-group-last">
+                          <label className="form-label">Latitude</label>
+                          <input className="input" value={profileForm.lat} onChange={(e) => setProfileForm((p) => ({ ...p, lat: e.target.value }))} required />
+                        </div>
+                        <div className="form-group form-group-last">
+                          <label className="form-label">Longitude</label>
+                          <input className="input" value={profileForm.lng} onChange={(e) => setProfileForm((p) => ({ ...p, lng: e.target.value }))} required />
+                        </div>
+                      </div>
+                    </div>
+                    <div className="map-container">
+                      <LiveMap
+                        center={mapCenter}
+                        points={[
+                          {
+                            id: "hospital-profile-location",
+                            label: profileForm.facility_name || "Hospital location",
+                            lat: mapCenter.lat,
+                            lng: mapCenter.lng,
+                            color: "#dc2626",
+                          },
+                        ]}
+                        height={320}
+                        selectedPointId="hospital-profile-location"
+                        buffers={[
+                          {
+                            id: "hospital-profile-buffer",
+                            lat: mapCenter.lat,
+                            lng: mapCenter.lng,
+                            radiusMeters: mapRadiusMeters,
+                            color: "#dc2626",
+                            fillOpacity: 0.1,
+                            label: `Operational radius: ${radiusKm} km`,
+                          },
+                        ]}
+                        draggableCenter
+                        onCenterDrag={handleProfileMapDrag}
+                      />
+                    </div>
+                    <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 16 }}>
+                      <button className="btn btn-primary" type="button" onClick={() => void handleSaveProfile()} disabled={loading}>
+                        {loading ? "Saving..." : "Save Profile"}
+                      </button>
+                    </div>
+                  </div>
                 </div>
-              </div>
-            </div>
               )}
 
               {activeTab === "create" && (
@@ -842,37 +1176,33 @@ export default function HospitalDashboardPage() {
                     <option value="CRITICAL">CRITICAL</option>
                   </select>
                   <input className="input" type="datetime-local" title="Deadline for this blood request" value={requestForm.required_by_datetime} onChange={(e) => setRequestForm((p) => ({ ...p, required_by_datetime: e.target.value }))} required />
-                  <select
-                    className="select"
-                    value={selectedCenterId}
-                    onChange={(e) => {
-                      const centerId = e.target.value;
-                      setSelectedCenterId(centerId);
-                      if (!centerId) return;
-                      const center = medicalCenters.find((item) => String(item.id) === centerId);
-                      if (!center) return;
-                      setRequestForm((prev) => ({
-                        ...prev,
-                        hospital_name: center.name,
-                        lat: String(center.location.lat),
-                        lng: String(center.location.lng),
-                      }));
-                      pushToast("info", `Selected ${center.name} (${center.city}).`);
-                    }}
-                  >
-                    <option value="">Select medical center (optional)</option>
-                    {medicalCenters.map((center) => (
-                      <option key={center.id} value={center.id}>
-                        {center.name} - {center.city} ({center.center_type})
-                      </option>
-                    ))}
-                  </select>
-                  <input className="input" placeholder="Hospital/facility name shown to users" title="Displayed to users viewing the request" value={requestForm.hospital_name} onChange={(e) => setRequestForm((p) => ({ ...p, hospital_name: e.target.value }))} required />
-                  <input className="input" placeholder="Latitude (auto-filled from location)" title="Geo latitude for map matching" value={requestForm.lat} onChange={(e) => setRequestForm((p) => ({ ...p, lat: e.target.value }))} required />
-                  <input className="input" placeholder="Longitude (auto-filled from location)" title="Geo longitude for map matching" value={requestForm.lng} onChange={(e) => setRequestForm((p) => ({ ...p, lng: e.target.value }))} required />
+                  <input
+                    className="input"
+                    placeholder="Hospital/facility name shown to users"
+                    title="Auto-filled from your profile facility name"
+                    value={requestForm.hospital_name || profileForm.facility_name || "Hospital"}
+                    readOnly
+                    required
+                  />
+                  <input
+                    className="input"
+                    placeholder="Latitude (auto-filled from your current location)"
+                    title="Auto-filled from current user location"
+                    value={requestForm.lat}
+                    readOnly
+                    required
+                  />
+                  <input
+                    className="input"
+                    placeholder="Longitude (auto-filled from your current location)"
+                    title="Auto-filled from current user location"
+                    value={requestForm.lng}
+                    readOnly
+                    required
+                  />
                   <button className="btn btn-primary" type="submit" disabled={loading}>{loading ? "Working..." : "Create Request"}</button>
                 </form>
-                {detectedCity ? <div className="notice section">Showing medical centers for your city: {detectedCity}</div> : null}
+                {detectedCity ? <div className="notice section">Detected city: {detectedCity}. Request uses your current location.</div> : null}
                 <div className="section">
                   <div className="notice">Pick request location from map (click anywhere to set lat/lon).</div>
                   <LiveMap
@@ -1113,7 +1443,7 @@ export default function HospitalDashboardPage() {
                     </div>
                   </div>
                 ) : null}
-                <div className="notice">Showing {mapPoints.length} request points. Eligible donors matched in last radar run: {eligibleDonors.length}.</div>
+                <div className="notice">Map shows only your current location. Eligible donors matched in last radar run: {eligibleDonors.length}.</div>
               </div>
             </div>
               )}

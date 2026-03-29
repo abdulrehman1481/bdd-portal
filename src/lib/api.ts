@@ -478,12 +478,18 @@ export async function getDonorInboxHistory(token: string): Promise<DonorInboxHis
 
 export async function getMedicalCenters(
   token: string,
-  options?: { city?: string; centerType?: "HOSPITAL" | "LAB" | "CLINIC" | "BLOOD_BANK"; query?: string }
+  options?: {
+    city?: string;
+    centerType?: "HOSPITAL" | "LAB" | "CLINIC" | "BLOOD_BANK";
+    query?: string;
+    strictCity?: boolean;
+  }
 ): Promise<MedicalCenterListResponse> {
   const params = new URLSearchParams();
   if (options?.city) params.set("city", options.city);
   if (options?.centerType) params.set("center_type", options.centerType);
   if (options?.query) params.set("q", options.query);
+  if (options?.strictCity) params.set("strict_city", "1");
   const suffix = params.toString() ? `?${params.toString()}` : "";
   return apiRequest<MedicalCenterListResponse>(`/directory/medical-centers/${suffix}`, { token });
 }
@@ -495,6 +501,7 @@ export async function getPublicMedicalCenters(options?: {
   lat?: number;
   lng?: number;
   limit?: number;
+  strictCity?: boolean;
 }): Promise<MedicalCenterListResponse> {
   const params = new URLSearchParams();
   if (options?.city) params.set("city", options.city);
@@ -503,9 +510,69 @@ export async function getPublicMedicalCenters(options?: {
   if (options?.lat !== undefined) params.set("lat", String(options.lat));
   if (options?.lng !== undefined) params.set("lng", String(options.lng));
   if (options?.limit !== undefined) params.set("limit", String(options.limit));
+  if (options?.strictCity) params.set("strict_city", "1");
   params.set("compact", "1");
   const suffix = params.toString() ? `?${params.toString()}` : "";
   return apiRequest<MedicalCenterListResponse>(`/directory/medical-centers/${suffix}`);
+}
+
+export async function reverseGeocodeCity(lat: number, lng: number): Promise<string | null> {
+  if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
+    return null;
+  }
+
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 1500);
+
+  try {
+    const url = new URL("https://nominatim.openstreetmap.org/reverse");
+    url.searchParams.set("format", "jsonv2");
+    url.searchParams.set("lat", String(lat));
+    url.searchParams.set("lon", String(lng));
+    url.searchParams.set("zoom", "10");
+    url.searchParams.set("addressdetails", "1");
+
+    const response = await fetch(url.toString(), {
+      headers: {
+        Accept: "application/json",
+      },
+      signal: controller.signal,
+    });
+
+    if (!response.ok) {
+      return null;
+    }
+
+    const payload = (await response.json()) as {
+      address?: {
+        city?: string;
+        town?: string;
+        village?: string;
+        county?: string;
+        municipality?: string;
+        state_district?: string;
+      };
+    };
+
+    const address = payload.address;
+    if (!address) {
+      return null;
+    }
+
+    return (
+      address.city ||
+      address.town ||
+      address.village ||
+      address.county ||
+      address.municipality ||
+      address.state_district ||
+      null
+    );
+  } catch {
+    return null;
+  } finally {
+    clearTimeout(timer);
+  }
 }
 
 export async function getDonorInboxPingDetail(token: string, pingId: number): Promise<DonorInboxPingDetail> {
