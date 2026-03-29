@@ -338,6 +338,8 @@ export default function LandingPage() {
           display: flex;
           align-items: center;
           gap: 24px;
+          margin: 0;
+          padding: 0;
         }
 
         .pk-nav-links a {
@@ -346,6 +348,10 @@ export default function LandingPage() {
           font-size: 12px;
           letter-spacing: 1.4px;
           text-transform: uppercase;
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          min-height: 36px;
         }
 
         .pk-nav-links a:hover { color: var(--mist); }
@@ -355,6 +361,7 @@ export default function LandingPage() {
           color: #fff !important;
           padding: 10px 18px;
           border-radius: 2px;
+          border: 1px solid transparent;
         }
 
         .pk-nav-cta-secondary {
@@ -903,16 +910,28 @@ export default function LandingPage() {
           }
 
           .pk-nav {
-            padding: 18px 22px;
+            padding: 16px 18px;
+          }
+
+          .pk-logo-text {
+            font-size: 22px;
+            letter-spacing: 2px;
           }
 
           .pk-nav-links {
-            gap: 12px;
+            gap: 8px;
           }
 
           .pk-nav-link-item,
           .pk-nav-theme {
             display: none;
+          }
+
+          .pk-nav-cta {
+            padding: 9px 12px;
+            font-size: 11px;
+            letter-spacing: 1px;
+            min-height: 34px;
           }
 
           .pk-hero-left,
@@ -921,6 +940,10 @@ export default function LandingPage() {
           .pk-cta-section {
             padding-left: 24px;
             padding-right: 24px;
+          }
+
+          .pk-hero-actions {
+            flex-wrap: wrap;
           }
 
           .pk-steps-grid {
@@ -941,7 +964,87 @@ export default function LandingPage() {
           .pk-footer-contact {
             text-align: center;
           }
+        }
 
+        @media (max-width: 640px) {
+          .pk-nav {
+            flex-direction: column;
+            align-items: flex-start;
+            gap: 10px;
+            padding: 12px;
+            background: rgba(10,10,11,0.94);
+          }
+
+          [data-theme='light'] .pk-nav {
+            background: rgba(247,243,237,0.98);
+          }
+
+          .pk-logo {
+            width: 100%;
+          }
+
+          .pk-nav-links {
+            width: 100%;
+            justify-content: space-between;
+            flex-wrap: wrap;
+            gap: 8px;
+          }
+
+          .pk-nav-auth {
+            flex: 1 1 calc(50% - 4px);
+          }
+
+          .pk-nav-auth .pk-nav-cta {
+            width: 100%;
+            text-align: center;
+          }
+
+          .pk-hero-left {
+            padding-top: 170px;
+          }
+
+          .pk-hero-actions {
+            flex-direction: column;
+            align-items: stretch;
+            gap: 10px;
+          }
+
+          .pk-hero-actions .pk-btn-primary,
+          .pk-hero-actions .pk-btn-secondary {
+            width: 100%;
+            justify-content: center;
+            text-align: center;
+          }
+
+          .pk-hero-actions .pk-btn-secondary {
+            border: 1px solid rgba(245,242,238,0.22);
+            border-radius: 2px;
+          }
+
+          [data-theme='light'] .pk-hero-actions .pk-btn-secondary {
+            border-color: rgba(23,18,14,0.22);
+          }
+
+          .pk-hero-stats {
+            gap: 18px;
+            flex-wrap: wrap;
+            margin-top: 36px;
+            padding-top: 28px;
+          }
+
+          .pk-steps-grid {
+            grid-template-columns: 1fr;
+          }
+
+          .pk-btn-group {
+            width: 100%;
+          }
+
+          .pk-btn-group .pk-btn-primary,
+          .pk-btn-group .pk-btn-outline {
+            width: 100%;
+            padding: 16px 18px;
+          }
         }
       `}</style>
     </main>
