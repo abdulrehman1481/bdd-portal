@@ -20,6 +20,51 @@ type RefreshResponse = {
   refresh?: string;
 };
 
+function isTokenAuthErrorMessage(message: string): boolean {
+  const lower = message.toLowerCase();
+  return (
+    lower.includes("token") ||
+    lower.includes("jwt") ||
+    lower.includes("expired") ||
+    lower.includes("authentication credentials were not provided") ||
+    lower.includes("invalid authorization header")
+  );
+}
+
+async function shouldAttemptTokenRefresh(response: Response): Promise<boolean> {
+  if (response.status !== 401) {
+    return false;
+  }
+
+  const contentType = response.headers.get("content-type") || "";
+
+  try {
+    if (contentType.includes("application/json")) {
+      const payload = (await response.clone().json()) as Record<string, unknown>;
+      const detail = typeof payload.detail === "string" ? payload.detail : "";
+      if (detail && isTokenAuthErrorMessage(detail)) {
+        return true;
+      }
+
+      const aggregate = Object.values(payload)
+        .flatMap((value) => normalizeErrorField(value))
+        .join(" ");
+      if (aggregate && isTokenAuthErrorMessage(aggregate)) {
+        return true;
+      }
+    } else {
+      const text = await response.clone().text();
+      if (text && isTokenAuthErrorMessage(text)) {
+        return true;
+      }
+    }
+  } catch {
+    return true;
+  }
+
+  return false;
+}
+
 let refreshInFlight: Promise<string> | null = null;
 
 function normalizeErrorField(value: unknown): string[] {
@@ -115,7 +160,7 @@ export async function apiRequest<T>(path: string, options: RequestOptions = {}):
 
   let response = await call(options.token);
 
-  if (response.status === 401 && options.token && !options.skipAuthRefresh) {
+  if (options.token && !options.skipAuthRefresh && (await shouldAttemptTokenRefresh(response))) {
     try {
       const nextAccess = await refreshAccessToken();
       response = await call(nextAccess);
