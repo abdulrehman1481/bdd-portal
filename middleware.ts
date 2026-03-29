@@ -1,6 +1,10 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
+function normalizeCredential(value: string): string {
+  return value.replace(/\r?\n/g, "").trim();
+}
+
 function unauthorizedResponse(): NextResponse {
   return new NextResponse("Authentication required", {
     status: 401,
@@ -15,12 +19,15 @@ function forbiddenResponse(message: string): NextResponse {
 }
 
 export function middleware(req: NextRequest): NextResponse {
-  const expectedUser = process.env.APK_UPLOAD_USER;
-  const expectedPass = process.env.APK_UPLOAD_PASS;
+  const expectedUserRaw = process.env.APK_UPLOAD_USER;
+  const expectedPassRaw = process.env.APK_UPLOAD_PASS;
 
-  if (!expectedUser || !expectedPass) {
+  if (!expectedUserRaw || !expectedPassRaw) {
     return forbiddenResponse("APK upload credentials are not configured.");
   }
+
+  const expectedUser = normalizeCredential(expectedUserRaw);
+  const expectedPass = normalizeCredential(expectedPassRaw);
 
   const authHeader = req.headers.get("authorization");
   if (!authHeader || !authHeader.startsWith("Basic ")) {
@@ -41,8 +48,8 @@ export function middleware(req: NextRequest): NextResponse {
     return unauthorizedResponse();
   }
 
-  const user = decoded.slice(0, separatorIndex);
-  const pass = decoded.slice(separatorIndex + 1);
+  const user = normalizeCredential(decoded.slice(0, separatorIndex));
+  const pass = normalizeCredential(decoded.slice(separatorIndex + 1));
 
   if (user !== expectedUser || pass !== expectedPass) {
     return unauthorizedResponse();
