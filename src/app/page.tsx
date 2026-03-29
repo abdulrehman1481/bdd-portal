@@ -142,6 +142,7 @@ export default function LandingPage() {
 
           <div className="pk-hero-actions">
             <Link href="/auth/signup" className="pk-btn-primary">Register As Donor</Link>
+            <Link href="/download/apk" className="pk-btn-secondary">Download Android APK</Link>
             <Link href="/auth/signin" className="pk-btn-secondary">Hospital Portal</Link>
           </div>
 
@@ -315,6 +316,7 @@ export default function LandingPage() {
         <p className="pk-cta-sub pk-reveal">Join BloodLink Pakistan as a donor or register your hospital and coordinate emergency blood response faster.</p>
         <div className="pk-btn-group pk-reveal">
           <Link href="/auth/signup" className="pk-btn-primary pk-btn-large">Register As Donor</Link>
+          <Link href="/download/apk" className="pk-btn-outline">Get Android APK</Link>
           <Link href="/dashboard/hospital" className="pk-btn-outline">Hospital Dashboard</Link>
         </div>
       </section>
