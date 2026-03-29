@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import ThemeToggle from "@/components/ThemeToggle";
 
 const TICKER_ITEMS = [
@@ -21,71 +21,8 @@ function pct(value: number, total: number) {
 export default function LandingPage() {
   const [mounted, setMounted] = useState(false);
 
-  const ticker = useMemo(() => [...TICKER_ITEMS, ...TICKER_ITEMS], []);
-
   useEffect(() => {
     setMounted(true);
-
-    const cursor = document.getElementById("pkCursor");
-    const ring = document.getElementById("pkCursorRing");
-    if (!cursor || !ring) return;
-
-    let mouseX = 0;
-    let mouseY = 0;
-    let ringX = 0;
-    let ringY = 0;
-
-    const onMouseMove = (e: MouseEvent) => {
-      mouseX = e.clientX;
-      mouseY = e.clientY;
-      cursor.setAttribute("style", `left:${mouseX - 6}px;top:${mouseY - 6}px;`);
-    };
-
-    const animateRing = () => {
-      ringX += (mouseX - ringX) * 0.12;
-      ringY += (mouseY - ringY) * 0.12;
-      ring.setAttribute("style", `left:${ringX - 18}px;top:${ringY - 18}px;`);
-      requestAnimationFrame(animateRing);
-    };
-
-    const hoverTargets = document.querySelectorAll(".pk-landing a, .pk-landing button");
-    const onEnter = () => {
-      cursor.setAttribute("style", `${cursor.getAttribute("style") || ""};transform:scale(2);`);
-      ring.setAttribute("style", `${ring.getAttribute("style") || ""};transform:scale(1.4);`);
-    };
-    const onLeave = () => {
-      cursor.setAttribute("style", `${cursor.getAttribute("style") || ""};transform:scale(1);`);
-      ring.setAttribute("style", `${ring.getAttribute("style") || ""};transform:scale(1);`);
-    };
-
-    document.addEventListener("mousemove", onMouseMove);
-    hoverTargets.forEach((el) => {
-      el.addEventListener("mouseenter", onEnter);
-      el.addEventListener("mouseleave", onLeave);
-    });
-
-    animateRing();
-
-    const revealElements = document.querySelectorAll(".pk-reveal");
-    const revealObserver = new IntersectionObserver(
-      (entries) => {
-        entries.forEach((entry) => {
-          if (entry.isIntersecting) entry.target.classList.add("visible");
-        });
-      },
-      { threshold: 0.1 },
-    );
-
-    revealElements.forEach((el) => revealObserver.observe(el));
-
-    return () => {
-      document.removeEventListener("mousemove", onMouseMove);
-      hoverTargets.forEach((el) => {
-        el.removeEventListener("mouseenter", onEnter);
-        el.removeEventListener("mouseleave", onLeave);
-      });
-      revealObserver.disconnect();
-    };
   }, []);
 
   const totalTrend = 92;
@@ -95,10 +32,6 @@ export default function LandingPage() {
 
   return (
     <main className="pk-landing">
-      <div id="pkCursor" className="pk-cursor" />
-      <div id="pkCursorRing" className="pk-cursor-ring" />
-      <div className="pk-grain" />
-
       <nav className="pk-nav">
         <a href="#" className="pk-logo" aria-label="BloodLink Pakistan Home">
           <div className="pk-logo-icon">
@@ -164,10 +97,6 @@ export default function LandingPage() {
 
         <div className="pk-hero-right">
           <div className="pk-hero-visual">
-            <div className="pk-pulse-ring" />
-            <div className="pk-pulse-ring" />
-            <div className="pk-pulse-ring" />
-
             <div className="pk-blood-drop-container">
               <svg className="pk-blood-drop-svg" viewBox="0 0 120 150" fill="none" xmlns="http://www.w3.org/2000/svg">
                 <path d="M60 8C60 8 18 43 18 75C18 98.196 36.804 117 60 117C83.196 117 102 98.196 102 75C102 43 60 8 60 8Z" fill="#C8102E" />
@@ -213,7 +142,7 @@ export default function LandingPage() {
 
       <div className="pk-ticker-bar">
         <div className="pk-ticker-inner">
-          {ticker.map((item, idx) => (
+          {TICKER_ITEMS.map((item, idx) => (
             <div key={`${item}-${idx}`} className="pk-ticker-item">
               <div className="pk-ticker-dot" />
               <span>{item}</span>
@@ -353,7 +282,6 @@ export default function LandingPage() {
           color: var(--text-primary);
           font-family: 'DM Sans', sans-serif;
           overflow-x: hidden;
-          cursor: none;
         }
 
         [data-theme='light'] .pk-landing {
@@ -364,49 +292,6 @@ export default function LandingPage() {
           --text-primary: #17120E;
           --text-muted: rgba(23,18,14,0.62);
           background: var(--obsidian);
-        }
-
-        .pk-cursor {
-          position: fixed;
-          width: 12px;
-          height: 12px;
-          background: var(--blood);
-          border-radius: 50%;
-          pointer-events: none;
-          z-index: 1000;
-          transition: transform 0.1s ease;
-          mix-blend-mode: difference;
-        }
-
-        .pk-cursor-ring {
-          position: fixed;
-          width: 36px;
-          height: 36px;
-          border: 1px solid rgba(200,16,46,0.6);
-          border-radius: 50%;
-          pointer-events: none;
-          z-index: 999;
-          transition: transform 0.2s ease;
-        }
-
-        .pk-grain {
-          position: fixed;
-          inset: -200%;
-          width: 400%;
-          height: 400%;
-          pointer-events: none;
-          z-index: 1;
-          opacity: 0.035;
-          background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='1'/%3E%3C/svg%3E");
-          animation: pk-grain 8s steps(1) infinite;
-        }
-
-        @keyframes pk-grain {
-          0%,100% { transform: translate(0,0); }
-          20% { transform: translate(-15%, 5%); }
-          40% { transform: translate(-5%, 25%); }
-          60% { transform: translate(15%, 0); }
-          80% { transform: translate(3%, 35%); }
         }
 
         .pk-nav {
@@ -622,33 +507,11 @@ export default function LandingPage() {
           height: 420px;
         }
 
-        .pk-pulse-ring {
-          position: absolute;
-          inset: 0;
-          border-radius: 50%;
-          border: 1px solid rgba(200,16,46,0.3);
-          animation: pk-pulse 3s ease-out infinite;
-        }
-
-        .pk-pulse-ring:nth-child(2) { animation-delay: 1s; opacity: 0.6; }
-        .pk-pulse-ring:nth-child(3) { animation-delay: 2s; opacity: 0.3; }
-
-        @keyframes pk-pulse {
-          0% { transform: scale(0.8); opacity: 0.8; }
-          100% { transform: scale(1.4); opacity: 0; }
-        }
-
         .pk-blood-drop-container {
           position: absolute;
           top: 50%;
           left: 50%;
           transform: translate(-50%, -55%);
-          animation: pk-float 4s ease-in-out infinite;
-        }
-
-        @keyframes pk-float {
-          0%, 100% { transform: translate(-50%, -55%); }
-          50% { transform: translate(-50%, -65%); }
         }
 
         .pk-blood-drop-svg {
@@ -735,13 +598,9 @@ export default function LandingPage() {
 
         .pk-ticker-inner {
           display: flex;
-          animation: pk-ticker 25s linear infinite;
+          justify-content: center;
+          flex-wrap: wrap;
           white-space: nowrap;
-        }
-
-        @keyframes pk-ticker {
-          from { transform: translateX(0); }
-          to { transform: translateX(-50%); }
         }
 
         .pk-ticker-item {
@@ -1019,14 +878,8 @@ export default function LandingPage() {
         }
 
         .pk-reveal {
-          opacity: 0;
-          transform: translateY(30px);
-          transition: all 0.7s ease;
-        }
-
-        .pk-reveal.visible {
           opacity: 1;
-          transform: translateY(0);
+          transform: none;
         }
 
         @media (max-width: 980px) {
@@ -1077,14 +930,6 @@ export default function LandingPage() {
             text-align: center;
           }
 
-          .pk-cursor,
-          .pk-cursor-ring {
-            display: none;
-          }
-
-          .pk-landing {
-            cursor: auto;
-          }
         }
       `}</style>
     </main>
