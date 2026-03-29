@@ -1,74 +1,72 @@
-# BloodLink Frontend (Next.js)
+# BloodLink Portal (Next.js)
 
-This frontend uses your Django API backend from `d:/appdev/bdd/backend`.
+Production web portal for the BloodLink platform. It provides donor and hospital dashboards, live request workflows, and a secure APK distribution pipeline backed by Cloudflare R2.
 
-## What is implemented
+## Highlights
 
-- Reference-inspired landing page converted to TSX
-- Auth flow for both donor and hospital
-  - Sign up for both roles
-  - Sign in and role-based redirect
-- Separate dashboards
-  - Hospital dashboard
-  - Donor dashboard
-- Hospital features
-  - View KPI summary
-  - View active requests
-  - Create blood request
-  - Trigger matching for a request
-  - Donor radar by blood group and radius
-  - Map with requests + donor points
-- Donor features
-  - Update donor profile
-  - View eligibility countdown
-  - View nearby request feed
-  - Map with nearby requests
+- Role-based authentication for donor and hospital users
+- Dashboard flows for request creation, tracking, and matching
+- OpenStreetMap-powered UI for geospatial blood request context
+- Public APK download page with signed private-file access
+- Hidden APK upload console protected with Basic Auth
+- Direct browser-to-R2 signed upload flow for large APK files
 
-## Key routes
+## Tech Stack
 
-- `/` : Landing
-- `/auth/signup` : Signup (donor/hospital)
-- `/auth/signin` : Signin
-- `/dashboard/hospital` : Hospital dashboard
-- `/dashboard/donor` : Donor dashboard
-- `/hospital` : Redirects to hospital dashboard
-- `/download/apk` : Public APK download page
-- `/api/apk/download` : Signed private R2 APK redirect
-- `/internal/apk-upload` : Protected APK upload console (not linked in nav)
-- `/api/apk/upload-url` : Protected signed URL API for direct browser-to-R2 upload
+- Next.js 16 (App Router)
+- TypeScript
+- React + Tailwind/CSS modules
+- Django REST backend integration
+- Cloudflare R2 (private object storage)
+- Vercel (hosting and deployment)
 
-## Setup
+## Routes
 
-### 1) Install dependencies
+- `/` Landing page
+- `/auth/signup` Signup page
+- `/auth/signin` Signin page
+- `/dashboard/donor` Donor dashboard
+- `/dashboard/hospital` Hospital dashboard
+- `/download/apk` Public APK download page
+- `/internal/apk-upload` Hidden APK upload page (Basic Auth)
+- `/api/apk/download` Signed URL redirect for private APK download
+- `/api/apk/upload-url` Signed URL API for direct R2 uploads
+
+## Local Setup
+
+1. Install dependencies
 
 ```bash
 npm install
 ```
 
-### 2) Configure environment
+2. Create env file
 
-Create `.env.local` from `.env.local.example`:
-
-```env
-NEXT_PUBLIC_API_BASE_URL=http://127.0.0.1:8000/api
-
-# Cloudflare R2 private APK download
-R2_ACCOUNT_ID=your_cloudflare_account_id
-R2_S3_API_URL=https://your_account_id.r2.cloudflarestorage.com
-R2_ACCESS_KEY_ID=your_r2_access_key_id
-R2_SECRET_ACCESS_KEY=your_r2_secret_access_key
-R2_BUCKET_NAME=bdd-link
-R2_APK_OBJECT_KEY=apk/bloodlink.apk
-R2_SIGNED_URL_EXPIRES_SECONDS=300
-
-# Basic auth for hidden APK upload route/API
-APK_UPLOAD_USER=your_upload_username
-APK_UPLOAD_PASS=your_upload_password
+```bash
+cp .env.local.example .env.local
 ```
 
-### 2.1) Vercel Environment Variables (Production)
+3. Start backend (Django)
 
-Add these keys in Vercel Project Settings -> Environment Variables:
+```powershell
+Set-Location D:/appdev/bdd/backend
+d:/appdev/bdd/.venv/Scripts/python.exe manage.py runserver 8000
+```
+
+4. Start portal
+
+```powershell
+Set-Location D:/appdev/bdd/bdd-portal
+npm run dev
+```
+
+Open `http://localhost:3000`.
+
+## Environment Variables
+
+Use `.env.local.example` as the source of truth.
+
+Required keys:
 
 - `NEXT_PUBLIC_API_BASE_URL`
 - `R2_ACCOUNT_ID`
@@ -81,58 +79,61 @@ Add these keys in Vercel Project Settings -> Environment Variables:
 - `APK_UPLOAD_USER`
 - `APK_UPLOAD_PASS`
 
-Recommended values for this project:
+Important:
 
-- `R2_ACCOUNT_ID=f24cb5cfab87962127776fb0d44ebef2`
-- `R2_S3_API_URL=https://f24cb5cfab87962127776fb0d44ebef2.r2.cloudflarestorage.com`
-- `R2_BUCKET_NAME=bdd-link`
-- `R2_APK_OBJECT_KEY=apk/bloodlink.apk`
-- `R2_SIGNED_URL_EXPIRES_SECONDS=300`
+- Never commit real secrets.
+- If a token/key was exposed, rotate it in Cloudflare and update Vercel.
+- Values must not include trailing spaces/newlines.
 
-Security note:
+## R2 CORS Policy (Required For APK Upload)
 
-- Do not commit real `R2_SECRET_ACCESS_KEY` / API tokens into source control.
-- If credentials were exposed in chat/logs, rotate them in Cloudflare and update Vercel immediately.
+Apply this in Cloudflare R2 bucket settings:
 
-R2 CORS requirement for browser upload:
-
-- In Cloudflare R2 bucket settings, allow CORS for your portal origins.
-- Allow methods: `PUT`, `GET`, `HEAD`.
-- Allow headers: `Content-Type`.
-
-### 3) Start backend first
-
-```powershell
-Set-Location D:/appdev/bdd/backend
-d:/appdev/bdd/.venv/Scripts/python.exe manage.py runserver 8000
+```json
+[
+  {
+    "AllowedOrigins": [
+      "https://bdd-linkvercel.app",
+      "https://bdd-portal-git-master-abdul-rehmans-projects-9e0c32a7.vercel.app",
+      "http://localhost:3000"
+    ],
+    "AllowedMethods": ["GET", "PUT", "HEAD", "OPTIONS"],
+    "AllowedHeaders": ["*"],
+    "ExposeHeaders": ["ETag", "x-amz-request-id", "x-amz-id-2"],
+    "MaxAgeSeconds": 3600
+  }
+]
 ```
 
-### 4) Start frontend
+## Deployment (Vercel)
+
+1. Add all environment variables in Vercel Project Settings for `Development`, `Preview`, and `Production`.
+2. Deploy:
 
 ```bash
-Set-Location D:/appdev/bdd/bdd-portal
-npm run dev
+npx vercel --prod --yes --cwd d:\appdev\bdd\bdd-portal
 ```
 
-Open `http://localhost:3000`.
+3. Verify:
 
-## Backend endpoints used
+- APK download page loads: `/download/apk`
+- Hidden upload page challenges for credentials: `/internal/apk-upload`
+- Upload completes and updated APK is downloadable
 
-- `POST /api/auth/register/`
-- `POST /api/auth/token/`
-- `GET /api/auth/me/`
-- `GET/PATCH /api/profiles/hospital/`
-- `GET/PATCH /api/profiles/donor/`
-- `GET /api/requests/`
-- `POST /api/requests/create/`
-- `POST /api/requests/{id}/trigger-matching/`
-- `GET /api/donors/radar/`
-- `GET /api/dashboard/hospital/summary/`
-- `GET /api/dashboard/donor/feed/`
-- `GET /api/dashboard/donor/eligibility/`
+## API Dependencies (Backend)
 
-## Notes
+Portal relies on Django API endpoints for auth, profile, dashboard, request, and inbox workflows.
 
-- Hospital double verification restriction is not enforced yet by backend login; this can be added next as a second-step workflow.
-- Session is currently stored in localStorage for MVP speed.
-- Maps are rendered with `react-leaflet` + OpenStreetMap tiles.
+Core endpoint families:
+
+- `/api/auth/*`
+- `/api/profiles/*`
+- `/api/requests/*`
+- `/api/dashboard/*`
+- `/api/donors/*`
+
+## Known Notes
+
+- Browser upload to R2 requires correct bucket CORS and clean env values.
+- Hidden upload route is intentionally not linked in navbar.
+- Session storage is optimized for MVP speed and deployment simplicity.
