@@ -17,11 +17,7 @@
     "date-fns": "^4.1.0",
     "leaflet": "^1.9.4",
     "lucide-react": "^0.554.0",
-<<<<<<< HEAD
     "next": "^16.2.1",
-=======
-    "next": "16.0.10",
->>>>>>> fc6fffa2fce899adda218909d578449f679a0bc2
     "react": "19.2.0",
     "react-dom": "19.2.0",
     "react-leaflet": "^5.0.0",
