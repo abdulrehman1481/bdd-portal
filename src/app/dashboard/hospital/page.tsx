@@ -1104,7 +1104,7 @@ export default function HospitalDashboardPage() {
                     <div className="profile-section-title">Location Information</div>
                     <div className="location-picker">
                       <div className="location-buttons">
-                        <button className="btn" type="button" onClick={detectLocation} disabled={loading}>Auto Detect Current Location</button>
+                        <button className="btn" type="button" onClick={() => void detectLocation()} disabled={loading}>Auto Detect Current Location</button>
                       </div>
                       <div style={{ fontSize: 12, color: "var(--text-muted)" }}>
                         Current Coordinates: <strong>{profileForm.lat || "0"}, {profileForm.lng || "0"}</strong>
