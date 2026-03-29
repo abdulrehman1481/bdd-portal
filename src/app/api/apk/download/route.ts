@@ -2,26 +2,34 @@ import { GetObjectCommand, S3Client } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { NextResponse } from "next/server";
 
+function sanitizeEnvValue(value: string): string {
+  return value.replace(/\r?\n/g, "").trim();
+}
+
 function requiredEnv(name: string): string {
   const value = process.env[name];
   if (!value) {
     throw new Error(`Missing required environment variable: ${name}`);
   }
-  return value;
+  return sanitizeEnvValue(value);
 }
 
 export async function GET(): Promise<NextResponse> {
   try {
-    const accountId = process.env.R2_ACCOUNT_ID;
+    const accountId = process.env.R2_ACCOUNT_ID ? sanitizeEnvValue(process.env.R2_ACCOUNT_ID) : "";
     const accessKeyId = requiredEnv("R2_ACCESS_KEY_ID");
     const secretAccessKey = requiredEnv("R2_SECRET_ACCESS_KEY");
     const bucket = requiredEnv("R2_BUCKET_NAME");
-    const objectKey = process.env.R2_APK_OBJECT_KEY || "apk/bloodlink.apk";
+    const objectKey = process.env.R2_APK_OBJECT_KEY
+      ? sanitizeEnvValue(process.env.R2_APK_OBJECT_KEY)
+      : "apk/bloodlink.apk";
     const endpoint =
-      process.env.R2_S3_API_URL ||
-      process.env.R2_ENDPOINT ||
+      (process.env.R2_S3_API_URL ? sanitizeEnvValue(process.env.R2_S3_API_URL) : "") ||
+      (process.env.R2_ENDPOINT ? sanitizeEnvValue(process.env.R2_ENDPOINT) : "") ||
       (accountId ? `https://${accountId}.r2.cloudflarestorage.com` : "");
-    const expiresRaw = process.env.R2_SIGNED_URL_EXPIRES_SECONDS || "300";
+    const expiresRaw = process.env.R2_SIGNED_URL_EXPIRES_SECONDS
+      ? sanitizeEnvValue(process.env.R2_SIGNED_URL_EXPIRES_SECONDS)
+      : "300";
     const expiresInSeconds = Number.parseInt(expiresRaw, 10);
 
     if (!Number.isFinite(expiresInSeconds) || expiresInSeconds < 60 || expiresInSeconds > 3600) {
