@@ -33,7 +33,7 @@ export default function LandingPage() {
   return (
     <main className="pk-landing">
       <nav className="pk-nav">
-        <a href="#" className="pk-logo" aria-label="BloodLink Pakistan Home">
+        <Link href="/" className="pk-logo" aria-label="BloodLink Pakistan Home">
           <div className="pk-logo-icon">
             <svg viewBox="0 0 36 36" fill="none" xmlns="http://www.w3.org/2000/svg">
               <path d="M18 4C18 4 6 14 6 22C6 28.627 11.373 34 18 34C24.627 34 30 28.627 30 22C30 14 18 4 18 4Z" fill="#C8102E" />
@@ -43,14 +43,15 @@ export default function LandingPage() {
             </svg>
           </div>
           <span className="pk-logo-text">BLOOD<span>LINK PK</span></span>
-        </a>
+        </Link>
 
         <ul className="pk-nav-links">
-          <li><a href="#how">How It Works</a></li>
-          <li><a href="#donors">For Donors</a></li>
-          <li><a href="#hospitals">For Hospitals</a></li>
-          <li><Link href="/dashboard/hospital" className="pk-nav-cta">Dashboard</Link></li>
-          <li>{mounted ? <ThemeToggle /> : null}</li>
+          <li className="pk-nav-link-item"><a href="#how">How It Works</a></li>
+          <li className="pk-nav-link-item"><a href="#donors">For Donors</a></li>
+          <li className="pk-nav-link-item"><a href="#hospitals">For Hospitals</a></li>
+          <li className="pk-nav-auth"><Link href="/auth/signup" className="pk-nav-cta">Sign Up</Link></li>
+          <li className="pk-nav-auth"><Link href="/auth/signin" className="pk-nav-cta pk-nav-cta-secondary">Sign In</Link></li>
+          <li className="pk-nav-theme">{mounted ? <ThemeToggle /> : null}</li>
         </ul>
       </nav>
 
@@ -246,7 +247,7 @@ export default function LandingPage() {
         <div className="pk-btn-group pk-reveal">
           <Link href="/auth/signup" className="pk-btn-primary pk-btn-large">Register As Donor</Link>
           <Link href="/download/apk" className="pk-btn-outline">Get Android APK</Link>
-          <Link href="/dashboard/hospital" className="pk-btn-outline">Hospital Dashboard</Link>
+          <Link href="/auth/signin" className="pk-btn-outline">Sign In</Link>
         </div>
       </section>
 
@@ -354,6 +355,16 @@ export default function LandingPage() {
           color: #fff !important;
           padding: 10px 18px;
           border-radius: 2px;
+        }
+
+        .pk-nav-cta-secondary {
+          background: transparent;
+          border: 1px solid rgba(245,242,238,0.22);
+        }
+
+        [data-theme='light'] .pk-nav-cta-secondary {
+          border-color: rgba(23,18,14,0.22);
+          color: var(--text-primary) !important;
         }
 
         .pk-nav .theme-toggle {
@@ -899,7 +910,8 @@ export default function LandingPage() {
             gap: 12px;
           }
 
-          .pk-nav-links li:not(:last-child):not(:nth-last-child(2)) {
+          .pk-nav-link-item,
+          .pk-nav-theme {
             display: none;
           }
 

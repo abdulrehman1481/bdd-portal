@@ -25,6 +25,14 @@ export default function SignUpPage() {
   const [selectedCenterId, setSelectedCenterId] = useState("");
   const [message, setMessage] = useState("");
 
+  function handleBack() {
+    if (typeof window !== "undefined" && window.history.length > 1) {
+      router.back();
+      return;
+    }
+    router.push("/");
+  }
+
   function normalizeCityName(city: string): string {
     return city
       .toLowerCase()
@@ -209,6 +217,10 @@ export default function SignUpPage() {
     <PublicOnly>
       <main className="page">
         <section className="container hero">
+        <div className="actions compact-actions" style={{ marginBottom: 12 }}>
+          <button className="btn" type="button" onClick={handleBack}>Back</button>
+          <Link href="/" className="btn btn-subtle">Home</Link>
+        </div>
         <div className="brand">BloodLink Onboarding</div>
         <h1 className="title">
           Create <span className="accent">Account</span>
