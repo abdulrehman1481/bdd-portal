@@ -205,6 +205,14 @@ export type RegisterPayload = {
   phone_number: string;
   role: UserRole;
   hospital_center_id?: number;
+  hospital_new?: {
+    name: string;
+    city?: string;
+    area?: string;
+    address?: string;
+    contact?: string;
+    location: { lat: number; lng: number };
+  };
 };
 
 export type HospitalSummary = {

@@ -23,6 +23,15 @@ export default function SignUpPage() {
   const [nearbyCenters, setNearbyCenters] = useState<MedicalCenter[]>([]);
   const [detectedCity, setDetectedCity] = useState("");
   const [selectedCenterId, setSelectedCenterId] = useState("");
+  const [currentLocation, setCurrentLocation] = useState<{ lat: number; lng: number } | null>(null);
+  const [createNewHospital, setCreateNewHospital] = useState(false);
+  const [newHospital, setNewHospital] = useState({
+    name: "",
+    city: "",
+    area: "",
+    address: "",
+    contact: "",
+  });
   const [message, setMessage] = useState("");
 
   function handleBack() {
@@ -64,6 +73,7 @@ export default function SignUpPage() {
     setNearbyCenters([]);
     setDetectedCity("");
     setSelectedCenterId("");
+    setCurrentLocation(null);
     setMessage("Location is required to show hospitals from your city only. Please allow location access.");
   }
 
@@ -81,6 +91,7 @@ export default function SignUpPage() {
         try {
           const lat = position.coords.latitude;
           const lng = position.coords.longitude;
+          setCurrentLocation({ lat, lng });
           const userCity = await reverseGeocodeCity(lat, lng);
           const resolvedCity = (userCity || "").trim();
 
@@ -98,6 +109,9 @@ export default function SignUpPage() {
               : inferredPayload.items;
             setNearbyCenters(inferredItems);
             setDetectedCity(inferredCity);
+            if (inferredCity) {
+              setNewHospital((prev) => ({ ...prev, city: prev.city || inferredCity }));
+            }
             if (!inferredItems.length) {
               setMessage("Could not determine your city. Please try again from a stable location signal.");
             }
@@ -136,6 +150,7 @@ export default function SignUpPage() {
 
           setNearbyCenters(cityItems);
           setDetectedCity(resolvedCity);
+          setNewHospital((prev) => ({ ...prev, city: prev.city || resolvedCity }));
 
           if (!cityItems.length) {
             setMessage(`No hospitals found in ${resolvedCity}.`);
@@ -147,6 +162,7 @@ export default function SignUpPage() {
         }
       },
       () => {
+        setCurrentLocation(null);
         void loadFallbackHospitals().finally(() => {
           setCentersLoading(false);
           setMessage(`Unable to detect location. Please allow location access.${geolocationBlockedHint()}`);
@@ -171,26 +187,39 @@ export default function SignUpPage() {
       : `+${form.phone_number.trim()}`;
 
     if (form.role === "HOSPITAL") {
-      // Validate hospital selection
-      if (!selectedCenterId) {
-        setMessage("Please detect location and select your hospital from the nearby list.");
-        setLoading(false);
-        return;
-      }
-      
-      // Validate that a center was actually loaded
-      const selectedCenter = nearbyCenters.find((c) => String(c.id) === selectedCenterId);
-      if (!selectedCenter) {
-        setMessage("Selected hospital is no longer available. Please reload the hospital list.");
-        setLoading(false);
-        return;
-      }
-      
-      // Validate city detection (at least one of these should be true)
-      if (!detectedCity && nearbyCenters.length === 0) {
-        setMessage("Unable to detect your city and no hospitals are available. Please try 'Load Hospitals Without Location'.");
-        setLoading(false);
-        return;
+      if (createNewHospital) {
+        if (!newHospital.name.trim()) {
+          setMessage("Please enter your hospital name.");
+          setLoading(false);
+          return;
+        }
+        if (!currentLocation) {
+          setMessage("Current location is required to create a new hospital. Please use location detection first.");
+          setLoading(false);
+          return;
+        }
+      } else {
+        // Validate hospital selection
+        if (!selectedCenterId) {
+          setMessage("Please detect location and select your hospital from the nearby list.");
+          setLoading(false);
+          return;
+        }
+
+        // Validate that a center was actually loaded
+        const selectedCenter = nearbyCenters.find((c) => String(c.id) === selectedCenterId);
+        if (!selectedCenter) {
+          setMessage("Selected hospital is no longer available. Please reload the hospital list.");
+          setLoading(false);
+          return;
+        }
+
+        // Validate city detection (at least one of these should be true)
+        if (!detectedCity && nearbyCenters.length === 0) {
+          setMessage("Unable to detect your city and no hospitals are available. Please try 'Load Hospitals Without Location'.");
+          setLoading(false);
+          return;
+        }
       }
     }
 
@@ -199,8 +228,19 @@ export default function SignUpPage() {
         ...form,
         phone_number: normalizedPhone,
       };
-      if (form.role === "HOSPITAL" && selectedCenterId) {
-        payload.hospital_center_id = Number(selectedCenterId);
+      if (form.role === "HOSPITAL") {
+        if (createNewHospital && currentLocation) {
+          payload.hospital_new = {
+            name: newHospital.name.trim(),
+            city: (newHospital.city || detectedCity || "").trim() || undefined,
+            area: newHospital.area.trim() || undefined,
+            address: newHospital.address.trim() || undefined,
+            contact: (newHospital.contact.trim() || normalizedPhone).trim(),
+            location: currentLocation,
+          };
+        } else if (selectedCenterId) {
+          payload.hospital_center_id = Number(selectedCenterId);
+        }
       }
 
       await registerUser(payload);
@@ -307,19 +347,72 @@ export default function SignUpPage() {
                   >
                     Load Hospitals Without Location
                   </button>
-                  <select
-                    className="select"
-                    value={selectedCenterId}
-                    onChange={(e) => setSelectedCenterId(e.target.value)}
-                    required={form.role === "HOSPITAL"}
+                  <button
+                    className="btn"
+                    type="button"
+                    onClick={() => {
+                      setCreateNewHospital((prev) => !prev);
+                      setSelectedCenterId("");
+                    }}
+                    disabled={centersLoading}
                   >
-                    <option value="">Select hospital from list</option>
-                    {nearbyCenters.map((center) => (
-                      <option key={center.id} value={center.id}>
-                        {center.name} - {center.city}{center.area ? ` (${center.area})` : ""}
-                      </option>
-                    ))}
-                  </select>
+                    {createNewHospital ? "Select Existing Hospital Instead" : "Hospital Not In List? Add New Hospital"}
+                  </button>
+
+                  {createNewHospital ? (
+                    <>
+                      <input
+                        className="input"
+                        placeholder="Hospital name"
+                        value={newHospital.name}
+                        required={form.role === "HOSPITAL" && createNewHospital}
+                        onChange={(e) => setNewHospital((prev) => ({ ...prev, name: e.target.value }))}
+                      />
+                      <input
+                        className="input"
+                        placeholder="City"
+                        value={newHospital.city}
+                        onChange={(e) => setNewHospital((prev) => ({ ...prev, city: e.target.value }))}
+                      />
+                      <input
+                        className="input"
+                        placeholder="Area (optional)"
+                        value={newHospital.area}
+                        onChange={(e) => setNewHospital((prev) => ({ ...prev, area: e.target.value }))}
+                      />
+                      <input
+                        className="input"
+                        placeholder="Address (optional)"
+                        value={newHospital.address}
+                        onChange={(e) => setNewHospital((prev) => ({ ...prev, address: e.target.value }))}
+                      />
+                      <input
+                        className="input"
+                        placeholder="Hospital contact (optional)"
+                        value={newHospital.contact}
+                        onChange={(e) => setNewHospital((prev) => ({ ...prev, contact: e.target.value }))}
+                      />
+                      <div className="notice">
+                        {currentLocation
+                          ? `Using current location: ${currentLocation.lat.toFixed(6)}, ${currentLocation.lng.toFixed(6)}`
+                          : "Use current location first to attach coordinates for your hospital."}
+                      </div>
+                    </>
+                  ) : (
+                    <select
+                      className="select"
+                      value={selectedCenterId}
+                      onChange={(e) => setSelectedCenterId(e.target.value)}
+                      required={form.role === "HOSPITAL" && !createNewHospital}
+                    >
+                      <option value="">Select hospital from list</option>
+                      {nearbyCenters.map((center) => (
+                        <option key={center.id} value={center.id}>
+                          {center.name} - {center.city}{center.area ? ` (${center.area})` : ""}
+                        </option>
+                      ))}
+                    </select>
+                  )}
                   {detectedCity ? <div className="notice">Detected city: {detectedCity}</div> : null}
                 </>
               ) : null}
