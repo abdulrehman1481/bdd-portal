@@ -46,3 +46,6 @@ next-env.d.ts
 .env*.local
 
 .env*.local
+.env.production.local
+.env.local
+.env.local.example

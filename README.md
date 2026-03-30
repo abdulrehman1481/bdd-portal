@@ -1,139 +1,98 @@
-# BloodLink Portal (Next.js)
+# BloodLink Portal
 
-Production web portal for the BloodLink platform. It provides donor and hospital dashboards, live request workflows, and a secure APK distribution pipeline backed by Cloudflare R2.
+Real-time blood coordination portal I built with a product mindset.
 
-## Highlights
+This web application is the operational front-end of BloodLink. I designed it to be fast, role-aware, and production-ready for donors and hospitals handling urgent blood requests.
 
-- Role-based authentication for donor and hospital users
-- Dashboard flows for request creation, tracking, and matching
-- OpenStreetMap-powered UI for geospatial blood request context
-- Public APK download page with signed private-file access
-- Hidden APK upload console protected with Basic Auth
-- Direct browser-to-R2 signed upload flow for large APK files
+## Why This Project Matters
+
+Blood shortage is a time-critical problem. I built this portal to reduce the gap between emergency demand and donor response by making request creation, matching, and response tracking intuitive and reliable.
+
+## What I Built
+
+- Role-based authentication and guarded user journeys
+- Donor and hospital dashboards with action-focused workflows
+- Blood request creation, tracking, and status management
+- Geospatial context using map integrations for better local matching
+- Secure APK distribution pipeline for mobile delivery
+- Internal operational tooling for controlled artifact uploads
+
+## Product Highlights
+
+- Clear dashboard hierarchy for high-signal decisions
+- Low-friction signup and login experience
+- Request lifecycle visibility from creation to fulfillment
+- API-first architecture for web and mobile parity
+- Security-aware design for storage and internal operations
 
 ## Tech Stack
 
 - Next.js 16 (App Router)
-- TypeScript
-- React + Tailwind/CSS modules
+- React + TypeScript
+- Tailwind + custom UI styling
 - Django REST backend integration
-- Cloudflare R2 (private object storage)
-- Vercel (hosting and deployment)
+- Cloud object storage with signed URL flows
+- Vercel deployment
 
-## Routes
+## Public Routes
 
-- `/` Landing page
-- `/auth/signup` Signup page
-- `/auth/signin` Signin page
-- `/dashboard/donor` Donor dashboard
-- `/dashboard/hospital` Hospital dashboard
-- `/download/apk` Public APK download page
-- `/internal/apk-upload` Hidden APK upload page (Basic Auth)
-- `/api/apk/download` Signed URL redirect for private APK download
-- `/api/apk/upload-url` Signed URL API for direct R2 uploads
+- /
+- /auth/signup
+- /auth/signin
+- /dashboard/donor
+- /dashboard/hospital
+- /download/apk
 
-## Local Setup
+Note: private/internal routes are intentionally omitted from this public README.
+
+## Local Development
 
 1. Install dependencies
+   npm install
 
-```bash
-npm install
-```
+2. Create local environment file
+   copy .env.local.example .env.local
 
-2. Create env file
-
-```bash
-cp .env.local.example .env.local
-```
-
-3. Start backend (Django)
-
-```powershell
-Set-Location D:/appdev/bdd/backend
-d:/appdev/bdd/.venv/Scripts/python.exe manage.py runserver 8000
-```
+3. Start backend API in the backend workspace
 
 4. Start portal
+   npm run dev
 
-```powershell
-Set-Location D:/appdev/bdd/bdd-portal
-npm run dev
-```
+5. Open http://localhost:3000
 
-Open `http://localhost:3000`.
+## Configuration Notes
 
-## Environment Variables
+- Use .env.local.example as the only source of truth
+- Keep all secrets in environment stores only
+- Do not commit credentials, tokens, private URLs, or internal access details
+- Rotate keys immediately if exposure is suspected
 
-Use `.env.local.example` as the source of truth.
+## Deployment Approach
 
-Required keys:
+- Deploy through Vercel environments (Development, Preview, Production)
+- Keep server-only secrets restricted to non-public scopes
+- Validate critical journeys after each deployment:
+  - authentication
+  - dashboard data loading
+  - request creation and updates
+  - mobile artifact download flow
 
-- `NEXT_PUBLIC_API_BASE_URL`
-- `R2_ACCOUNT_ID`
-- `R2_S3_API_URL`
-- `R2_ACCESS_KEY_ID`
-- `R2_SECRET_ACCESS_KEY`
-- `R2_BUCKET_NAME`
-- `R2_APK_OBJECT_KEY`
-- `R2_SIGNED_URL_EXPIRES_SECONDS`
-- `APK_UPLOAD_USER`
-- `APK_UPLOAD_PASS`
+## API Contract Used
 
-Important:
+The portal consumes the platform API families:
 
-- Never commit real secrets.
-- If a token/key was exposed, rotate it in Cloudflare and update Vercel.
-- Values must not include trailing spaces/newlines.
+- /api/auth/*
+- /api/profiles/*
+- /api/requests/*
+- /api/dashboard/*
+- /api/donors/*
 
-## R2 CORS Policy (Required For APK Upload)
+## Security and Privacy
 
-Apply this in Cloudflare R2 bucket settings:
+- Sensitive operational details are intentionally excluded from this document
+- Internal tooling is access-controlled and not publicly linked
+- Storage access is mediated with signed requests and short-lived permissions
 
-```json
-[
-  {
-    "AllowedOrigins": [
-      "https://bdd-linkvercel.app",
-      "https://bdd-portal-git-master-abdul-rehmans-projects-9e0c32a7.vercel.app",
-      "http://localhost:3000"
-    ],
-    "AllowedMethods": ["GET", "PUT", "HEAD", "OPTIONS"],
-    "AllowedHeaders": ["*"],
-    "ExposeHeaders": ["ETag", "x-amz-request-id", "x-amz-id-2"],
-    "MaxAgeSeconds": 3600
-  }
-]
-```
+## Ownership
 
-## Deployment (Vercel)
-
-1. Add all environment variables in Vercel Project Settings for `Development`, `Preview`, and `Production`.
-2. Deploy:
-
-```bash
-npx vercel --prod --yes --cwd d:\appdev\bdd\bdd-portal
-```
-
-3. Verify:
-
-- APK download page loads: `/download/apk`
-- Hidden upload page challenges for credentials: `/internal/apk-upload`
-- Upload completes and updated APK is downloadable
-
-## API Dependencies (Backend)
-
-Portal relies on Django API endpoints for auth, profile, dashboard, request, and inbox workflows.
-
-Core endpoint families:
-
-- `/api/auth/*`
-- `/api/profiles/*`
-- `/api/requests/*`
-- `/api/dashboard/*`
-- `/api/donors/*`
-
-## Known Notes
-
-- Browser upload to R2 requires correct bucket CORS and clean env values.
-- Hidden upload route is intentionally not linked in navbar.
-- Session storage is optimized for MVP speed and deployment simplicity.
+I built and maintained this project end-to-end, including frontend architecture, integration strategy, deployment workflows, and production hardening.
